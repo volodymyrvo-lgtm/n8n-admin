@@ -7,14 +7,21 @@ async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
   const config = app.get(ConfigService);
-  const corsOrigins = config
-    .get<string>('CORS_ORIGINS', 'http://localhost:4200')
-    .split(',')
-    .map((origin) => origin.trim())
-    .filter(Boolean);
+  const corsOriginsRaw = config.get<string>('CORS_ORIGINS', 'http://localhost:4200').trim();
+
+  // CORS_ORIGINS=* — тимчасово дозволяє будь-який origin (для розробки/дебагу).
+  // origin:true, а не літеральний '*', бо з credentials:true браузер відхилить
+  // буквальний wildcard — тут сервер відбиває назад Origin із запиту.
+  const corsOrigin =
+    corsOriginsRaw === '*'
+      ? true
+      : corsOriginsRaw
+          .split(',')
+          .map((origin) => origin.trim())
+          .filter(Boolean);
 
   app.enableCors({
-    origin: corsOrigins,
+    origin: corsOrigin,
     credentials: true,
   });
 
