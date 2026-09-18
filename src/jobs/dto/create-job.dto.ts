@@ -1,0 +1,37 @@
+import { ArrayNotEmpty, IsArray, IsEnum, IsNotEmptyObject, IsObject, IsString, IsUUID, MinLength } from 'class-validator';
+import { Board, MessageType, TaskStatus } from '../../generated/prisma/client.js';
+
+export class CreateJobDto {
+  /**
+   * Довільна структура кроків workflow. Конкретну форму (масив/об'єкт з
+   * кроками) визначає n8n, тут перевіряємо лише, що це непорожній JSON,
+   * а не примітив/null. Статуси окремих кроків усередині цієї структури
+   * потім оновлює n8n через PATCH /jobs/:id.
+   */
+  @IsObject()
+  @IsNotEmptyObject()
+  steps!: Record<string, unknown>;
+
+  @IsString()
+  @MinLength(1)
+  jobType!: string;
+
+  @IsEnum(TaskStatus)
+  taskStatus!: TaskStatus;
+
+  @IsEnum(MessageType)
+  messageType!: MessageType;
+
+  @IsEnum(Board)
+  board!: Board;
+
+  @IsString()
+  @MinLength(1)
+  taskDescription!: string;
+
+  /** Джоба тепер може посилатись на кілька правил одразу. */
+  @IsArray()
+  @ArrayNotEmpty()
+  @IsUUID('all', { each: true })
+  ruleIds!: string[];
+}

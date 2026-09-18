@@ -1,0 +1,126 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum Role {
+  admin
+  user
+
+  @@map("role")
+}
+
+enum JobStatus {
+  pending
+  success
+  failed
+
+  @@map("job_status")
+}
+
+enum TaskStatus {
+  new
+  update
+  localization
+
+  @@map("task_status")
+}
+
+enum MessageType {
+  email
+  sms
+  web_push
+  notification_center
+  in_app
+
+  @@map("message_type")
+}
+
+enum Board {
+  ONBOARDING
+  Onboarding_2_not_ready
+  CHURN_15
+
+  @@map("board")
+}
+
+model Prompt {
+  id        String   @id @default(uuid()) @db.Uuid
+  name      String
+  message   String
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  @@map("prompts")
+}
+
+model User {
+  id        String   @id @default(uuid()) @db.Uuid
+  username  String   @unique
+  /// bcrypt hash, ніколи не зберігати відкритий пароль
+  password  String
+  role      Role     @default(user)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  jobs Job[]
+
+  @@map("users")
+}
+
+model Rule {
+  id        String   @id @default(uuid()) @db.Uuid
+  ruleName  String   @map("rule_name")
+  ruleSet   Json     @map("rule_set") @db.JsonB
+  setType   String[] @map("set_type")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  jobRules JobRule[]
+
+  @@map("rules")
+}
+
+model Job {
+  id              String      @id @default(uuid()) @db.Uuid
+  steps           Json        @db.JsonB
+  jobType         String      @map("job_type")
+  taskStatus      TaskStatus  @map("task_status")
+  messageType     MessageType @map("message_type")
+  board           Board
+  taskDescription String      @map("task_description")
+  status          JobStatus   @default(pending)
+  runDate         DateTime?   @map("run_date") @db.Timestamptz(3)
+  createdAt       DateTime    @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt       DateTime    @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  jobRules JobRule[]
+
+  runnedById String? @map("runned_by") @db.Uuid
+  runnedBy   User?   @relation(fields: [runnedById], references: [id], onDelete: SetNull, onUpdate: Cascade)
+
+  @@index([status])
+  @@index([runnedById])
+  @@map("jobs")
+}
+
+/// Явна проміжна таблиця (не implicit m:n), бо implicit-зв'язок у Prisma
+/// завжди ставить ON DELETE CASCADE на обидва боки — а нам потрібен
+/// Restrict саме на Rule (щоб не можна було видалити правило, поки на
+/// нього посилається хоч одна джоба), і Cascade на Job (видалення джоби
+/// прибирає її власні зв'язки, це нормально).
+model JobRule {
+  jobId  String @map("job_id") @db.Uuid
+  ruleId String @map("rule_id") @db.Uuid
+
+  job  Job  @relation(fields: [jobId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  rule Rule @relation(fields: [ruleId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+
+  @@id([jobId, ruleId])
+  @@index([ruleId])
+  @@map("job_rules")
+}
