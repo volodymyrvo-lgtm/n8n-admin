@@ -44,6 +44,8 @@ export class JobsService {
           // Юзер, який створив джобу — той, хто зараз залогінений (з JWT),
           // а не те, що прийшло в тілі запиту.
           runnedById: createdByUserId,
+          sm: dto.sm,
+          glossaryId: dto.glossaryId,
           jobRules: {
             create: dto.ruleIds.map((ruleId) => ({ ruleId })),
           },

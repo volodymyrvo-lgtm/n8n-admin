@@ -1,4 +1,4 @@
-import { ArrayNotEmpty, IsArray, IsEnum, IsNotEmptyObject, IsObject, IsString, IsUUID, MinLength } from 'class-validator';
+import { ArrayNotEmpty, IsArray, IsEnum, IsNotEmptyObject, IsObject, IsOptional, IsString, IsUUID, MinLength } from 'class-validator';
 import { Board, MessageType, TaskStatus } from '../../generated/prisma/client.js';
 
 export class CreateJobDto {
@@ -34,4 +34,17 @@ export class CreateJobDto {
   @ArrayNotEmpty()
   @IsUUID('all', { each: true })
   ruleIds!: string[];
+
+  /**
+   * Довільний UUID з іншої системи. Обов'язкове поле при створенні, але в
+   * БД стовпець nullable (у старих джоб значення взяти нізвідки), тому
+   * вимога "обов'язково" — тільки тут, на рівні DTO.
+   */
+  @IsUUID()
+  sm!: string;
+
+  /** Опціональне посилання на глосарій (id), без enforced FK у БД. */
+  @IsOptional()
+  @IsUUID()
+  glossaryId?: string;
 }

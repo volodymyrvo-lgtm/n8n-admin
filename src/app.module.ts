@@ -4,6 +4,7 @@ import { ScheduleModule } from '@nestjs/schedule';
 import { AppController } from './app.controller.js';
 import { AppService } from './app.service.js';
 import { AuthModule } from './auth/auth.module.js';
+import { GlossariesModule } from './glossaries/glossaries.module.js';
 import { JobsModule } from './jobs/jobs.module.js';
 import { PrismaModule } from './prisma/prisma.module.js';
 import { PromptsModule } from './prompts/prompts.module.js';
@@ -23,6 +24,7 @@ import { UsersModule } from './users/users.module.js';
     RulesModule,
     JobsModule,
     PromptsModule,
+    GlossariesModule,
   ],
   controllers: [AppController],
   providers: [AppService],

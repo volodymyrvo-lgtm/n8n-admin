@@ -98,6 +98,14 @@ model Job {
   createdAt       DateTime    @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt       DateTime    @updatedAt @map("updated_at") @db.Timestamptz(3)
 
+  /// Довільний UUID-ідентифікатор з іншої системи. Без FK-зв'язку в
+  /// Prisma/БД — просто значення, яке передають і зберігають як є.
+  sm String? @db.Uuid
+
+  /// Опціональне посилання на глосарій (за id). Так само без enforced FK —
+  /// просто nullable UUID-стовпець, а не Prisma-relation.
+  glossaryId String? @map("glossary_id") @db.Uuid
+
   jobRules JobRule[]
 
   runnedById String? @map("runned_by") @db.Uuid
@@ -123,4 +131,17 @@ model JobRule {
   @@id([jobId, ruleId])
   @@index([ruleId])
   @@map("job_rules")
+}
+
+/// Реальна таблиця глосарія, якою керує адмінка (структурно ідентична Rule:
+/// id/назва/jsonb-правила/теги).
+model Glossary {
+  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  glossaryName  String   @unique @map("glossary_name")
+  allGlossRules Json     @map("all_gloss_rules")
+  setType       String[] @default([]) @map("set_type")
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt     DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@map("glossaries")
 }

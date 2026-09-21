@@ -16,4 +16,8 @@ export class JobResponseDto {
   /** id усіх правил, на які посилається ця джоба (many-to-many через JobRule). */
   ruleIds!: string[];
   runnedById!: string | null;
+  /** Довільний UUID з іншої системи, без FK-зв'язку. Null у старих джобах. */
+  sm!: string | null;
+  /** Опціональне посилання на глосарій (id), без enforced FK. */
+  glossaryId!: string | null;
 }
