@@ -14,6 +14,13 @@ export class GlossariesService {
   constructor(private readonly prisma: PrismaService) {}
 
   async create(dto: CreateGlossaryDto): Promise<GlossaryResponseDto> {
+    // Захист від випадкового створення глосарія без entries — той самий
+    // збій, що стався при update() (22.09.2026): клієнт надіслав
+    // allGlossRules без ключа "entries" взагалі, і БД це не зловила
+    // (constraint glossaries_rules_has_entries дозволяє відсутність ключа,
+    // забороняє лише порожній масив). Перевіряємо структуру тут, до запису.
+    GlossariesService.assertHasEntriesArray(dto.allGlossRules);
+
     try {
       const glossary = await this.prisma.glossary.create({
         data: {
@@ -43,6 +50,21 @@ export class GlossariesService {
   }
 
   async update(id: string, dto: UpdateGlossaryDto): Promise<GlossaryResponseDto> {
+    // PATCH /glossaries/:id більше НІКОЛИ не чіпає entries — навіть якщо
+    // клієнт передав allGlossRules без "entries" або з якимось іншим
+    // масивом entries. Якщо allGlossRules взагалі є в тілі запиту, беремо
+    // поточний entries з БД і примусово підставляємо його в результат:
+    // єдиний спосіб змінити самі терміни — дедіковані
+    // /glossaries/:id/entries[/:entryId] ендпоінти. Саме відсутність цього
+    // й дозволила стерти entries 22.09.2026.
+    let allGlossRules: Prisma.InputJsonValue | undefined;
+
+    if (dto.allGlossRules !== undefined) {
+      const current = await this.findRawOrThrow(id);
+      const currentRoot = GlossariesService.parseRoot(current.allGlossRules);
+      allGlossRules = { ...dto.allGlossRules, entries: currentRoot.entries } as Prisma.InputJsonValue;
+    }
+
     try {
       const glossary = await this.prisma.glossary.update({
         where: { id },
@@ -50,7 +72,7 @@ export class GlossariesService {
           glossaryName: dto.glossaryName,
           // undefined тут означає "поле не передали" — Prisma просто
           // пропустить його й не чіпатиме значення в базі.
-          allGlossRules: dto.allGlossRules as Prisma.InputJsonValue | undefined,
+          allGlossRules,
           setType: dto.setType,
         },
       });
@@ -188,6 +210,22 @@ export class GlossariesService {
     }
 
     return root as GlossaryRoot;
+  }
+
+  /**
+   * Мінімальна структурна перевірка перед тим, як allGlossRules піде в БД
+   * при СТВОРЕННІ нового глосарія — тут немає "поточного" entries, яке
+   * можна було б підставити замість переданого, тому вимагаємо його явно.
+   * (У update() цю роль тепер виконує підстановка поточного entries з БД —
+   * дивись коментар там.)
+   */
+  private static assertHasEntriesArray(value: Record<string, unknown>): void {
+    if (!Array.isArray(value.entries)) {
+      throw new BadRequestException(
+        'allGlossRules must contain an "entries" array — use PATCH /glossaries/:id/entries/:entryId ' +
+          'to edit a single term instead of resending allGlossRules without it',
+      );
+    }
   }
 
   private static requireEnglishTerm(entry: Record<string, unknown>): string {
