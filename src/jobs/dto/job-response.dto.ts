@@ -20,4 +20,8 @@ export class JobResponseDto {
   sm!: string | null;
   /** Опціональне посилання на глосарій (id), без enforced FK. */
   glossaryId!: string | null;
+  /** Назва LLM-моделі. Null у старих джобах. */
+  llm!: string | null;
+  /** Витрати по джобі, ключ → сума. Завжди об'єкт (мінімум {}), не null. */
+  spend!: Record<string, number>;
 }

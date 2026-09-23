@@ -22,4 +22,14 @@ export class UpdateJobDto {
   @IsOptional()
   @IsISO8601()
   runDate?: string;
+
+  /**
+   * Витрати по джобі (ключ → сума), напр. {"gpt-4": 0.04}. Сервіс МЕРДЖИТЬ
+   * ці ключі в поточний spend з БД (додає/оновлює лише передані ключі,
+   * решту не чіпає) — це не повна заміна об'єкта.
+   */
+  @IsOptional()
+  @IsObject()
+  @IsNotEmptyObject()
+  spend?: Record<string, number>;
 }

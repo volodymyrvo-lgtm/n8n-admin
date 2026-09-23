@@ -106,6 +106,17 @@ model Job {
   /// просто nullable UUID-стовпець, а не Prisma-relation.
   glossaryId String? @map("glossary_id") @db.Uuid
 
+  /// Назва LLM-моделі, якою виконана джоба. Задається лише при створенні
+  /// (як jobType/board/sm) — PATCH від n8n її не змінює. Nullable в БД
+  /// (старі джоби значення не мають), обов'язкове в CreateJobDto.
+  llm String?
+
+  /// Витрати по джобі: ключ (напр. назва моделі) → сума. Завжди починається
+  /// як {} при створенні; n8n проставляє/оновлює окремі ключі через PATCH
+  /// (сервіс мерджить по ключах, а не перезаписує об'єкт цілком — саме
+  /// повне перезаписування знесло entries в glossaries 22.09.2026).
+  spend Json @default("{}") @db.JsonB
+
   jobRules JobRule[]
 
   runnedById String? @map("runned_by") @db.Uuid

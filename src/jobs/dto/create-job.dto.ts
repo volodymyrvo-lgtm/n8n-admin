@@ -47,4 +47,12 @@ export class CreateJobDto {
   @IsOptional()
   @IsUUID()
   glossaryId?: string;
+
+  /**
+   * Назва LLM-моделі. Метадані джоби, як jobType/board — задається лише
+   * тут, PATCH /jobs/:id (n8n) її змінити не може.
+   */
+  @IsString()
+  @MinLength(1)
+  llm!: string;
 }

@@ -46,6 +46,9 @@ export class JobsService {
           runnedById: createdByUserId,
           sm: dto.sm,
           glossaryId: dto.glossaryId,
+          llm: dto.llm,
+          // spend навмисно не передаємо тут — БД-дефолт ('{}') сам
+          // проставить порожній об'єкт, який далі поповнює n8n через PATCH.
           jobRules: {
             create: dto.ruleIds.map((ruleId) => ({ ruleId })),
           },
@@ -65,6 +68,25 @@ export class JobsService {
 
   /** Оновлення прогресу виконання джоби — викликає n8n через API-ключ. */
   async update(id: string, dto: UpdateJobDto): Promise<JobResponseDto> {
+    // spend мерджиться по ключах, а не перезаписується цілком — той самий
+    // клас багу, що стер entries в glossaries 22.09.2026, тут би тихо
+    // занулював усі попередні витрати щоразу, як n8n дописує ще один
+    // ключ. Тому спершу читаємо поточний spend і домерджовуємо в нього
+    // лише передані ключі.
+    let spend: Prisma.InputJsonValue | undefined;
+
+    if (dto.spend !== undefined) {
+      JobsService.assertNumericRecord(dto.spend);
+
+      const current = await this.prisma.job.findUnique({ where: { id }, select: { spend: true } });
+      if (!current) {
+        throw new NotFoundException(`Job "${id}" not found`);
+      }
+
+      const currentSpend = JobsService.isNumericRecord(current.spend) ? current.spend : {};
+      spend = { ...currentSpend, ...dto.spend } as Prisma.InputJsonValue;
+    }
+
     try {
       const job = await this.prisma.job.update({
         where: { id },
@@ -74,6 +96,7 @@ export class JobsService {
           // undefined тут означає "поле не передали" — Prisma просто
           // пропустить його й не чіпатиме значення в базі.
           runDate: dto.runDate === undefined ? undefined : new Date(dto.runDate),
+          spend,
         },
         include: JOB_WITH_RULES_INCLUDE,
       });
@@ -100,8 +123,33 @@ export class JobsService {
     return { deletedCount: count };
   }
 
+  /** spend у БД має бути звичайним об'єктом {рядок: число} — перевіряємо перед мерджем. */
+  private static isNumericRecord(value: unknown): value is Record<string, number> {
+    if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+      return false;
+    }
+
+    return Object.values(value as Record<string, unknown>).every((v) => typeof v === 'number' && Number.isFinite(v));
+  }
+
+  /** Перевіряє, що всі значення в тілі PATCH-запиту — скінченні числа, перш ніж мерджити їх у spend. */
+  private static assertNumericRecord(value: Record<string, unknown>): void {
+    for (const [key, v] of Object.entries(value)) {
+      if (typeof v !== 'number' || !Number.isFinite(v)) {
+        throw new BadRequestException(`spend."${key}" must be a finite number`);
+      }
+    }
+  }
+
   private static toResponseDto(job: JobWithRules): JobResponseDto {
     const { jobRules, ...rest } = job;
-    return { ...rest, ruleIds: jobRules.map((jobRule) => jobRule.ruleId) };
+    return {
+      ...rest,
+      // Prisma типізує JSON-поле spend як JsonValue (union включає null),
+      // хоча в БД воно NOT NULL DEFAULT '{}' — тут просто звужуємо тип
+      // під DTO, як і з allGlossRules в glossaries.
+      spend: rest.spend as Record<string, number>,
+      ruleIds: jobRules.map((jobRule) => jobRule.ruleId),
+    };
   }
 }
