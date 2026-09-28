@@ -16,10 +16,8 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard.js';
 import { RolesGuard } from '../auth/guards/roles.guard.js';
 import { Role } from '../generated/prisma/client.js';
 import { CreateGlossaryDto } from './dto/create-glossary.dto.js';
-import { CreateGlossaryEntryDto } from './dto/create-glossary-entry.dto.js';
 import { GlossaryResponseDto } from './dto/glossary-response.dto.js';
 import { UpdateGlossaryDto } from './dto/update-glossary.dto.js';
-import { UpdateGlossaryEntryDto } from './dto/update-glossary-entry.dto.js';
 import { GlossariesService } from './glossaries.service.js';
 
 /**
@@ -67,26 +65,37 @@ export class GlossariesController {
     return this.glossariesService.listEntries(id);
   }
 
+  /**
+   * Тіло запиту — САМІ поля терміну напряму (english_term, status, ...),
+   * без обгортки на кшталт {"entry": {...}}. Раніше вимагали обгортку —
+   * клієнт (n8n/фронт) шле поля прямо в корені тіла, і ValidationPipe
+   * відбивав це як "property ... should not exist". Тип параметра —
+   * Record<string, unknown> (не клас із class-validator), тож глобальний
+   * ValidationPipe його не чіпає (whitelist/forbidNonWhitelisted
+   * застосовуються лише до DTO-класів) — валідацію "непорожній об'єкт" і
+   * наявність english_term сервіс робить сам.
+   */
   @Post(':id/entries')
   @UseGuards(RolesGuard)
   @Roles(Role.admin)
   @HttpCode(HttpStatus.CREATED)
   addEntry(
     @Param('id', ParseUUIDPipe) id: string,
-    @Body() dto: CreateGlossaryEntryDto,
+    @Body() entry: Record<string, unknown>,
   ): Promise<GlossaryResponseDto> {
-    return this.glossariesService.addEntry(id, dto.entry);
+    return this.glossariesService.addEntry(id, entry);
   }
 
+  /** Тіло запиту — поля для часткового злиття напряму, без обгортки {"patch": {...}}. */
   @Patch(':id/entries/:entryId')
   @UseGuards(RolesGuard)
   @Roles(Role.admin)
   updateEntry(
     @Param('id', ParseUUIDPipe) id: string,
     @Param('entryId', ParseUUIDPipe) entryId: string,
-    @Body() dto: UpdateGlossaryEntryDto,
+    @Body() patch: Record<string, unknown>,
   ): Promise<GlossaryResponseDto> {
-    return this.glossariesService.updateEntry(id, entryId, dto.patch);
+    return this.glossariesService.updateEntry(id, entryId, patch);
   }
 
   @Delete(':id/entries/:entryId')

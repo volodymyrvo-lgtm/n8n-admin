@@ -124,6 +124,11 @@ export class GlossariesService {
   }
 
   async addEntry(id: string, entry: Record<string, unknown>): Promise<GlossaryResponseDto> {
+    // Раніше цю перевірку робив @IsObject()/@IsNotEmptyObject() у
+    // CreateGlossaryEntryDto — тепер контролер приймає тіло напряму
+    // (Record<string, unknown>, без DTO-класу), тому перевіряємо тут.
+    GlossariesService.assertNonEmptyObject(entry, 'entry');
+
     const glossary = await this.findRawOrThrow(id);
     const root = GlossariesService.parseRoot(glossary.allGlossRules);
 
@@ -137,6 +142,9 @@ export class GlossariesService {
   }
 
   async updateEntry(id: string, entryId: string, patch: Record<string, unknown>): Promise<GlossaryResponseDto> {
+    // Той самий момент, що й у addEntry — раніше перевіряв DTO, тепер сервіс.
+    GlossariesService.assertNonEmptyObject(patch, 'patch');
+
     const glossary = await this.findRawOrThrow(id);
     const root = GlossariesService.parseRoot(glossary.allGlossRules);
     const index = root.entries.findIndex((existing) => GlossariesService.sameId(existing, entryId));
@@ -225,6 +233,12 @@ export class GlossariesService {
         'allGlossRules must contain an "entries" array — use PATCH /glossaries/:id/entries/:entryId ' +
           'to edit a single term instead of resending allGlossRules without it',
       );
+    }
+  }
+
+  private static assertNonEmptyObject(value: unknown, paramName: string): asserts value is Record<string, unknown> {
+    if (typeof value !== 'object' || value === null || Array.isArray(value) || Object.keys(value).length === 0) {
+      throw new BadRequestException(`${paramName} must be a non-empty object`);
     }
   }
 
