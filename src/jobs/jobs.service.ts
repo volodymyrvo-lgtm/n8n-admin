@@ -47,6 +47,10 @@ export class JobsService {
           sm: dto.sm,
           glossaryId: dto.glossaryId,
           llm: dto.llm,
+          // runDate НЕ приймаємо з фронта — виставляємо на бекенді як
+          // момент створення джоби. n8n і надалі може змінити його пізніше
+          // через PATCH /jobs/:id (UpdateJobDto) — це лишається без змін.
+          runDate: new Date(),
           // spend навмисно не передаємо тут — БД-дефолт ('{}') сам
           // проставить порожній об'єкт, який далі поповнює n8n через PATCH.
           jobRules: {
@@ -93,9 +97,11 @@ export class JobsService {
         data: {
           steps: dto.steps as Prisma.InputJsonValue | undefined,
           status: dto.status,
-          // undefined тут означає "поле не передали" — Prisma просто
-          // пропустить його й не чіпатиме значення в базі.
-          runDate: dto.runDate === undefined ? undefined : new Date(dto.runDate),
+          // runDate тепер виставляється лише на створенні (POST /jobs) і
+          // більше не оновлюється через цей ендпоінт. dto.runDate навмисно
+          // ігнорується — поле лишили в UpdateJobDto заради сумісності,
+          // щоб n8n, який і далі може його присилати, не отримував 400
+          // через forbidNonWhitelisted, але воно ніяк не впливає на запис.
           spend,
         },
         include: JOB_WITH_RULES_INCLUDE,

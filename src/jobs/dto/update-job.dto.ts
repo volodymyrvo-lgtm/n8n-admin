@@ -4,10 +4,10 @@ import { JobStatus } from '../../generated/prisma/client.js';
 /**
  * Навмисно НЕ PartialType(CreateJobDto) — цей ендпоінт викликає n8n
  * (через окремий API-ключ, не JWT користувача), і йому можна оновлювати
- * лише прогрес виконання джоби: статуси кроків, загальний статус і дату
- * запуску. jobType/taskStatus/messageType/board/taskDescription/ruleId —
- * незмінні після створення, щоб компрометація API-ключа не дозволяла
- * переприв'язати джобу до іншого правила чи підмінити її метадані.
+ * лише прогрес виконання джоби: статуси кроків і загальний статус.
+ * jobType/taskStatus/messageType/board/taskDescription/ruleId — незмінні
+ * після створення, щоб компрометація API-ключа не дозволяла переприв'язати
+ * джобу до іншого правила чи підмінити її метадані.
  */
 export class UpdateJobDto {
   @IsOptional()
@@ -19,6 +19,13 @@ export class UpdateJobDto {
   @IsEnum(JobStatus)
   status?: JobStatus;
 
+  /**
+   * @deprecated runDate тепер задається лише при створенні (POST /jobs) і
+   * більше не оновлюється тут. Поле навмисно лишили в DTO — щоб n8n, який
+   * і далі може його присилати за старою звичкою, отримував успішну
+   * відповідь замість 400 (forbidNonWhitelisted) — але значення повністю
+   * ігнорується сервісом (дивись JobsService.update()).
+   */
   @IsOptional()
   @IsISO8601()
   runDate?: string;
