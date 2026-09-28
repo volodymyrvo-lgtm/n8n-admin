@@ -103,6 +103,7 @@ export class JobsService {
           // щоб n8n, який і далі може його присилати, не отримував 400
           // через forbidNonWhitelisted, але воно ніяк не впливає на запис.
           spend,
+          tableUrl: dto.tableUrl,
         },
         include: JOB_WITH_RULES_INCLUDE,
       });

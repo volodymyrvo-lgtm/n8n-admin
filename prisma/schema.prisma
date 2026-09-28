@@ -117,6 +117,10 @@ model Job {
   /// повне перезаписування знесло entries в glossaries 22.09.2026).
   spend Json @default("{}") @db.JsonB
 
+  /// Посилання на згенеровану таблицю (напр. Google Sheets). Null при
+  /// створенні — n8n проставляє це вже по ходу виконання через PATCH.
+  tableUrl String? @map("table_url")
+
   jobRules JobRule[]
 
   runnedById String? @map("runned_by") @db.Uuid

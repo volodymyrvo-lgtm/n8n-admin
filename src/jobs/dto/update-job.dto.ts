@@ -1,4 +1,4 @@
-import { IsEnum, IsISO8601, IsNotEmptyObject, IsObject, IsOptional } from 'class-validator';
+import { IsEnum, IsISO8601, IsNotEmptyObject, IsObject, IsOptional, IsUrl } from 'class-validator';
 import { JobStatus } from '../../generated/prisma/client.js';
 
 /**
@@ -39,4 +39,9 @@ export class UpdateJobDto {
   @IsObject()
   @IsNotEmptyObject()
   spend?: Record<string, number>;
+
+  /** Посилання на згенеровану таблицю. n8n проставляє це вже по ходу виконання. */
+  @IsOptional()
+  @IsUrl()
+  tableUrl?: string;
 }

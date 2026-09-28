@@ -24,4 +24,6 @@ export class JobResponseDto {
   llm!: string | null;
   /** Витрати по джобі, ключ → сума. Завжди об'єкт (мінімум {}), не null. */
   spend!: Record<string, number>;
+  /** Посилання на згенеровану таблицю. Null, поки n8n не проставить через PATCH. */
+  tableUrl!: string | null;
 }
