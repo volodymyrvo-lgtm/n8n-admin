@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, HttpCode, HttpStatus, Param, ParseUUIDPipe, Patch, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, HttpCode, HttpStatus, Param, ParseUUIDPipe, Patch, Post, Query, UseGuards } from '@nestjs/common';
 import { ApiKeyGuard } from '../auth/guards/api-key.guard.js';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard.js';
 import { CurrentUser } from '../auth/decorators/current-user.decorator.js';
@@ -7,7 +7,9 @@ import { RolesGuard } from '../auth/guards/roles.guard.js';
 import type { JwtPayload } from '../auth/types/jwt-payload.type.js';
 import { Role } from '../generated/prisma/client.js';
 import { CreateJobDto } from './dto/create-job.dto.js';
+import { FindJobsQueryDto } from './dto/find-jobs-query.dto.js';
 import { JobResponseDto } from './dto/job-response.dto.js';
+import { PaginatedJobsResponseDto } from './dto/paginated-jobs-response.dto.js';
 import { UpdateJobDto } from './dto/update-job.dto.js';
 import { JobsService } from './jobs.service.js';
 
@@ -17,8 +19,8 @@ export class JobsController {
 
   @Get()
   @UseGuards(JwtAuthGuard)
-  findAll(): Promise<JobResponseDto[]> {
-    return this.jobsService.findAll();
+  findAll(@Query() query: FindJobsQueryDto): Promise<PaginatedJobsResponseDto> {
+    return this.jobsService.findAll(query);
   }
 
   /**

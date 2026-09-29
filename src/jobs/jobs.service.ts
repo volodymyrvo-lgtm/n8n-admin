@@ -3,7 +3,9 @@ import { PrismaService } from '../prisma/prisma.service.js';
 import { JobsGateway } from './jobs.gateway.js';
 import { Prisma } from '../generated/prisma/client.js';
 import { CreateJobDto } from './dto/create-job.dto.js';
+import { FindJobsQueryDto } from './dto/find-jobs-query.dto.js';
 import { JobResponseDto } from './dto/job-response.dto.js';
+import { PaginatedJobsResponseDto } from './dto/paginated-jobs-response.dto.js';
 import { UpdateJobDto } from './dto/update-job.dto.js';
 
 const JOB_WITH_RULES_INCLUDE = {
@@ -19,13 +21,38 @@ export class JobsService {
     private readonly jobsGateway: JobsGateway,
   ) {}
 
-  async findAll(): Promise<JobResponseDto[]> {
-    const jobs = await this.prisma.job.findMany({
-      include: JOB_WITH_RULES_INCLUDE,
-      orderBy: { createdAt: 'desc' },
-    });
+  /**
+   * Пагінований список джоб згідно з ТЗ фронта: page/limit (1-based),
+   * опціональні фільтри по messageType ("jobType" у query — так назвав
+   * фронт, у нас це messageType) і runnedById. total — кількість джоб, що
+   * відповідають ФІЛЬТРАМ, а не загальна кількість у таблиці.
+   */
+  async findAll(query: FindJobsQueryDto): Promise<PaginatedJobsResponseDto> {
+    const where: Prisma.JobWhereInput = {
+      messageType: query.jobType && query.jobType.length > 0 ? { in: query.jobType } : undefined,
+      runnedById: query.runnedById,
+    };
 
-    return jobs.map(JobsService.toResponseDto);
+    // $transaction — щоб items і total рахувались проти одного й того ж
+    // знімку даних, а не могли розійтись через паралельний запис між двома
+    // окремими запитами.
+    const [items, total] = await this.prisma.$transaction([
+      this.prisma.job.findMany({
+        where,
+        include: JOB_WITH_RULES_INCLUDE,
+        orderBy: { createdAt: 'desc' },
+        skip: (query.page - 1) * query.limit,
+        take: query.limit,
+      }),
+      this.prisma.job.count({ where }),
+    ]);
+
+    return {
+      items: items.map(JobsService.toResponseDto),
+      total,
+      page: query.page,
+      limit: query.limit,
+    };
   }
 
   async create(dto: CreateJobDto, createdByUserId: string): Promise<JobResponseDto> {
