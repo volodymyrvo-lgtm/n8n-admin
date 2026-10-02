@@ -42,7 +42,7 @@ enum MessageType {
 
 enum Board {
   ONBOARDING
-  Onboarding_2_not_ready
+  onboarding_comms
   CHURN_15
 
   @@map("board")
