@@ -1,7 +1,8 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { isUUID } from 'class-validator';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { JobsGateway } from './jobs.gateway.js';
-import { Prisma } from '../generated/prisma/client.js';
+import { Prisma, TaskStatus } from '../generated/prisma/client.js';
 import { CreateJobDto } from './dto/create-job.dto.js';
 import { FindJobsQueryDto } from './dto/find-jobs-query.dto.js';
 import { JobResponseDto } from './dto/job-response.dto.js';
@@ -56,6 +57,19 @@ export class JobsService {
   }
 
   async create(dto: CreateJobDto, createdByUserId: string): Promise<JobResponseDto> {
+    // sm/llm/ruleIds обов'язкові для всіх taskStatus, КРІМ 'update' — там
+    // фронт ховає ці поля і завжди шле їх порожніми (sm: '', llm: '',
+    // ruleIds: []). DTO це вже пропускає (лише базові @IsString()/@IsArray()),
+    // тож реальну вимогу перевіряємо тут, де видно обидва поля одразу.
+    JobsService.assertRequiredFieldsForTaskStatus(dto);
+
+    // sm у БД типізований як uuid (не text) — порожній рядок Postgres не
+    // прийме ("invalid input syntax for type uuid"), тож нормалізуємо
+    // порожнє значення в null перед записом. llm технічно text, але для
+    // узгодженості з "null = значення не задане" робимо так само.
+    const sm = dto.sm.trim() === '' ? null : dto.sm;
+    const llm = dto.llm.trim() === '' ? null : dto.llm;
+
     try {
       const job = await this.prisma.job.create({
         data: {
@@ -71,9 +85,9 @@ export class JobsService {
           // Юзер, який створив джобу — той, хто зараз залогінений (з JWT),
           // а не те, що прийшло в тілі запиту.
           runnedById: createdByUserId,
-          sm: dto.sm,
+          sm,
           glossaryId: dto.glossaryId,
-          llm: dto.llm,
+          llm,
           // runDate НЕ приймаємо з фронта — виставляємо на бекенді як
           // момент створення джоби. n8n і надалі може змінити його пізніше
           // через PATCH /jobs/:id (UpdateJobDto) — це лишається без змін.
@@ -155,6 +169,29 @@ export class JobsService {
   async removeAll(): Promise<{ deletedCount: number }> {
     const { count } = await this.prisma.job.deleteMany({});
     return { deletedCount: count };
+  }
+
+  /**
+   * Для будь-якого taskStatus, крім 'update', sm/llm/ruleIds лишаються
+   * обов'язковими (як і до появи update-джоб) — 'update' навмисно
+   * виключено, бо фронт для нього ці поля ховає й завжди шле порожніми.
+   */
+  private static assertRequiredFieldsForTaskStatus(dto: CreateJobDto): void {
+    if (dto.taskStatus === TaskStatus.update) {
+      return;
+    }
+
+    if (!isUUID(dto.sm)) {
+      throw new BadRequestException('sm must be a UUID unless taskStatus is "update"');
+    }
+
+    if (dto.llm.trim().length === 0) {
+      throw new BadRequestException('llm must not be empty unless taskStatus is "update"');
+    }
+
+    if (dto.ruleIds.length === 0) {
+      throw new BadRequestException('ruleIds must not be empty unless taskStatus is "update"');
+    }
   }
 
   /** spend у БД має бути звичайним об'єктом {рядок: число} — перевіряємо перед мерджем. */
