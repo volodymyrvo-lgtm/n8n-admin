@@ -2,7 +2,7 @@ import { BadRequestException, Injectable, NotFoundException } from '@nestjs/comm
 import { isUUID } from 'class-validator';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { JobsGateway } from './jobs.gateway.js';
-import { Prisma, TaskStatus } from '../generated/prisma/client.js';
+import { JobStatus, Prisma, TaskStatus } from '../generated/prisma/client.js';
 import { CreateJobDto } from './dto/create-job.dto.js';
 import { FindJobsQueryDto } from './dto/find-jobs-query.dto.js';
 import { JobResponseDto } from './dto/job-response.dto.js';
@@ -132,11 +132,25 @@ export class JobsService {
       spend = { ...currentSpend, ...dto.spend } as Prisma.InputJsonValue;
     }
 
+    // status: 'failed' — крім самого статусу джоби, позначаємо failed і той
+    // крок, що зараз pending.
+    let steps = dto.steps as Prisma.InputJsonValue | undefined;
+
+    if (dto.status === JobStatus.failed) {
+      const current = await this.prisma.job.findUnique({ where: { id }, select: { steps: true } });
+      if (!current) {
+        throw new NotFoundException(`Job "${id}" not found`);
+      }
+
+      // Якщо разом зі status прийшли й steps — працюємо з ними, інакше з БД.
+      steps = JobsService.failPendingStep(dto.steps ?? current.steps);
+    }
+
     try {
       const job = await this.prisma.job.update({
         where: { id },
         data: {
-          steps: dto.steps as Prisma.InputJsonValue | undefined,
+          steps,
           status: dto.status,
           // runDate тепер виставляється лише на створенні (POST /jobs) і
           // більше не оновлюється через цей ендпоінт. dto.runDate навмисно
@@ -192,6 +206,32 @@ export class JobsService {
     if (dto.ruleIds.length === 0) {
       throw new BadRequestException('ruleIds must not be empty unless taskStatus is "update"');
     }
+  }
+
+  /**
+   * Повертає копію steps, де ПЕРШИЙ крок зі status === 'pending' (кроки
+   * виконуються послідовно, тож pending зазвичай один) переведено в 'failed'.
+   * Якщо pending-кроку немає — steps повертається без змін (не помилка:
+   * n8n у error-хендлері не повинен отримувати 400).
+   */
+  private static failPendingStep(steps: unknown): Prisma.InputJsonValue {
+    if (typeof steps !== 'object' || steps === null || Array.isArray(steps)) {
+      return steps as Prisma.InputJsonValue;
+    }
+
+    const entries = Object.entries(steps as Record<string, unknown>);
+    const pendingKey = entries.find(
+      ([, step]) => typeof step === 'object' && step !== null && (step as { status?: unknown }).status === 'pending',
+    )?.[0];
+
+    if (pendingKey === undefined) {
+      return steps as Prisma.InputJsonValue;
+    }
+
+    return {
+      ...(steps as Record<string, unknown>),
+      [pendingKey]: { ...(steps as Record<string, Record<string, unknown>>)[pendingKey], status: 'failed' },
+    } as Prisma.InputJsonValue;
   }
 
   /** spend у БД має бути звичайним об'єктом {рядок: число} — перевіряємо перед мерджем. */

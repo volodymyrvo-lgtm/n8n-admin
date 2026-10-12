@@ -15,6 +15,11 @@ export class UpdateJobDto {
   @IsNotEmptyObject()
   steps?: Record<string, unknown>;
 
+  /**
+   * Загальний статус джоби. Якщо приходить 'failed', сервіс додатково
+   * знаходить у steps крок зі status 'pending' і переводить саме його в
+   * 'failed' (n8n не треба знати назву кроку).
+   */
   @IsOptional()
   @IsEnum(JobStatus)
   status?: JobStatus;
