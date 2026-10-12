@@ -6,6 +6,7 @@ import { AppService } from './app.service.js';
 import { AuthModule } from './auth/auth.module.js';
 import { GlossariesModule } from './glossaries/glossaries.module.js';
 import { JobsModule } from './jobs/jobs.module.js';
+import { LlmUsageModule } from './llm-usage/llm-usage.module.js';
 import { PrismaModule } from './prisma/prisma.module.js';
 import { PromptsModule } from './prompts/prompts.module.js';
 import { RulesModule } from './rules/rules.module.js';
@@ -25,6 +26,7 @@ import { UsersModule } from './users/users.module.js';
     JobsModule,
     PromptsModule,
     GlossariesModule,
+    LlmUsageModule,
   ],
   controllers: [AppController],
   providers: [AppService],

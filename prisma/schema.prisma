@@ -160,3 +160,29 @@ model Glossary {
 
   @@map("glossaries")
 }
+
+/// Щоденний звіт n8n про витрати на LLM: один рядок = день + flow + модель.
+/// Дані за день приходять цілими, тож повторна відправка ПЕРЕЗАПИСУЄ рядок
+/// (upsert по @@unique), а не сумується. Тиждень/місяць/квартал не
+/// зберігаються — рахуються при читанні через date_trunc.
+model LlmUsageDaily {
+  id               String   @id @default(uuid(7)) @db.Uuid
+  date             DateTime @db.Date
+  flow             String
+  /// Виводиться з назви флоу при записі (див. src/llm-usage/flow-type.ts), напр. new_email_generation, sms_localization.
+  type             String
+  llmMod           String   @map("llm_mod")
+  requests         Int
+  inputTokens      BigInt   @map("input_tokens")
+  outputTokens     BigInt   @map("output_tokens")
+  cacheReadTokens  BigInt   @map("cache_read_tokens")
+  cacheWriteTokens BigInt   @map("cache_write_tokens")
+  cost             Decimal  @db.Decimal(18, 8)
+  createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt        DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  @@unique([date, flow, llmMod])
+  @@index([date])
+  @@index([type, date])
+  @@map("llm_usage_daily")
+}
