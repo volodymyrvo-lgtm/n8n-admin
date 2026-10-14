@@ -9,6 +9,7 @@ import {
   ParseUUIDPipe,
   Patch,
   Post,
+  Query,
   UseGuards,
 } from '@nestjs/common';
 import { Roles } from '../auth/decorators/roles.decorator.js';
@@ -16,6 +17,7 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard.js';
 import { RolesGuard } from '../auth/guards/roles.guard.js';
 import { Role } from '../generated/prisma/client.js';
 import { CreatePromptDto } from './dto/create-prompt.dto.js';
+import { FindPromptsQueryDto } from './dto/find-prompts-query.dto.js';
 import { PromptResponseDto } from './dto/prompt-response.dto.js';
 import { UpdatePromptDto } from './dto/update-prompt.dto.js';
 import { PromptsService } from './prompts.service.js';
@@ -39,8 +41,8 @@ export class PromptsController {
   }
 
   @Get()
-  findAll(): Promise<PromptResponseDto[]> {
-    return this.promptsService.findAll();
+  findAll(@Query() query: FindPromptsQueryDto): Promise<PromptResponseDto[]> {
+    return this.promptsService.findAll(query);
   }
 
   @Patch(':id')

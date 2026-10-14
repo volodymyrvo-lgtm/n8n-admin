@@ -7,6 +7,7 @@ import { RolesGuard } from '../auth/guards/roles.guard.js';
 import type { JwtPayload } from '../auth/types/jwt-payload.type.js';
 import { Role } from '../generated/prisma/client.js';
 import { CreateJobDto } from './dto/create-job.dto.js';
+import { CreateSeoJobDto } from './dto/create-seo-job.dto.js';
 import { FindJobsQueryDto } from './dto/find-jobs-query.dto.js';
 import { JobResponseDto } from './dto/job-response.dto.js';
 import { PaginatedJobsResponseDto } from './dto/paginated-jobs-response.dto.js';
@@ -34,6 +35,18 @@ export class JobsController {
   @HttpCode(HttpStatus.CREATED)
   create(@Body() dto: CreateJobDto, @CurrentUser() user: JwtPayload): Promise<JobResponseDto> {
     return this.jobsService.create(dto, user.sub);
+  }
+
+  /**
+   * Створює SEO-джобу (kind = seo). Окремий ендпоінт, щоб прапорець kind
+   * виставляв бекенд, а не клієнт, і щоб DTO був суворим (поля communication
+   * тут відхиляються як зайві).
+   */
+  @Post('seo')
+  @UseGuards(JwtAuthGuard)
+  @HttpCode(HttpStatus.CREATED)
+  createSeo(@Body() dto: CreateSeoJobDto, @CurrentUser() user: JwtPayload): Promise<JobResponseDto> {
+    return this.jobsService.createSeo(dto, user.sub);
   }
 
   /** Оновлює прогрес виконання джоби — викликає n8n за окремим API-ключем (не JWT). */

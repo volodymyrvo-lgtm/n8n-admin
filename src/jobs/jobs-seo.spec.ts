@@ -1,0 +1,96 @@
+import { ValidationPipe } from '@nestjs/common';
+import { describe, expect, it, vi } from 'vitest';
+import { JobKind } from '../generated/prisma/client.js';
+import { CreateSeoJobDto } from './dto/create-seo-job.dto.js';
+import { FindJobsQueryDto } from './dto/find-jobs-query.dto.js';
+import { JobsService } from './jobs.service.js';
+
+const pipe = new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true });
+
+async function parse<T extends object>(cls: new () => T, plain: object, type: 'body' | 'query' = 'body'): Promise<T> {
+  return pipe.transform(plain, { type, metatype: cls }) as Promise<T>;
+}
+
+const VALID_SEO = {
+  steps: { step1: { status: 'pending' } },
+  language: 'en',
+  llm: 'gpt_5_6_sol',
+  prompt: 'EN 6eed9bdc-4ed1-4307-9ecf-dc031c34db42',
+  pageTask: 'R048 · Кено',
+};
+
+function makeService() {
+  const create = vi.fn((args: { data: Record<string, unknown> }) => Promise.resolve({ id: 'job-1', jobRules: [], spend: {}, ...args.data }));
+  const findMany = vi.fn().mockResolvedValue([]);
+  const count = vi.fn().mockResolvedValue(0);
+  const prisma = {
+    job: { create, findMany, count },
+    $transaction: vi.fn((ops: unknown[]) => Promise.all(ops)),
+  };
+  const service = new JobsService(prisma as never, { emitJobUpdated: vi.fn() } as never);
+  return { service, create, findMany, count };
+}
+
+describe('POST /jobs/seo — CreateSeoJobDto', () => {
+  it('приймає чотири основні поля + steps', async () => {
+    await expect(parse(CreateSeoJobDto, VALID_SEO)).resolves.toMatchObject({ language: 'en', pageTask: 'R048 · Кено' });
+  });
+
+  it('обрізає пробіли навколо рядків', async () => {
+    const dto = await parse(CreateSeoJobDto, { ...VALID_SEO, prompt: '  EN abc  ' });
+    expect(dto.prompt).toBe('EN abc');
+  });
+
+  it.each(['language', 'llm', 'prompt', 'pageTask', 'steps'])('відхиляє відсутнє поле %s', async (field) => {
+    const { [field]: _omitted, ...rest } = VALID_SEO as Record<string, unknown>;
+    await expect(parse(CreateSeoJobDto, rest)).rejects.toThrow();
+  });
+
+  it('відхиляє поля communication-джоби і клієнтський kind як зайві', async () => {
+    await expect(parse(CreateSeoJobDto, { ...VALID_SEO, board: 'ONBOARDING' })).rejects.toThrow();
+    await expect(parse(CreateSeoJobDto, { ...VALID_SEO, kind: 'communication' })).rejects.toThrow();
+    await expect(parse(CreateSeoJobDto, { ...VALID_SEO, runDate: '2026-10-14T00:00:00Z' })).rejects.toThrow();
+  });
+
+  it('відхиляє некоректний код мови', async () => {
+    await expect(parse(CreateSeoJobDto, { ...VALID_SEO, language: 'English language' })).rejects.toThrow();
+    await expect(parse(CreateSeoJobDto, { ...VALID_SEO, language: 'E' })).rejects.toThrow();
+  });
+});
+
+describe('JobsService.createSeo', () => {
+  it('виставляє kind=seo, runnedById, runDate і нормалізує language', async () => {
+    const { service, create } = makeService();
+    const dto = await parse(CreateSeoJobDto, VALID_SEO);
+
+    await service.createSeo(dto, 'user-1');
+
+    const { data } = create.mock.calls[0]![0] as { data: Record<string, unknown> };
+    expect(data).toMatchObject({
+      kind: JobKind.seo,
+      language: 'EN',
+      llm: 'gpt_5_6_sol',
+      prompt: 'EN 6eed9bdc-4ed1-4307-9ecf-dc031c34db42',
+      pageTask: 'R048 · Кено',
+      runnedById: 'user-1',
+    });
+    expect(data['runDate']).toBeInstanceOf(Date);
+    expect(data).not.toHaveProperty('board');
+    expect(data).not.toHaveProperty('messageType');
+  });
+});
+
+describe('GET /jobs — фільтр kind', () => {
+  it('за замовчуванням повертає лише communication', async () => {
+    const { service, findMany } = makeService();
+    await service.findAll(await parse(FindJobsQueryDto, {}, 'query'));
+    expect((findMany.mock.calls[0]![0] as { where: { kind: JobKind } }).where.kind).toBe(JobKind.communication);
+  });
+
+  it('kind=seo фільтрує SEO-джоби; невідомий kind — помилка', async () => {
+    const { service, findMany } = makeService();
+    await service.findAll(await parse(FindJobsQueryDto, { kind: 'seo' }, 'query'));
+    expect((findMany.mock.calls[0]![0] as { where: { kind: JobKind } }).where.kind).toBe(JobKind.seo);
+    await expect(parse(FindJobsQueryDto, { kind: 'other' }, 'query')).rejects.toThrow();
+  });
+});

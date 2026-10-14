@@ -1,7 +1,8 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
-import { Prisma } from '../generated/prisma/client.js';
+import { JobKind, Prisma } from '../generated/prisma/client.js';
 import { CreatePromptDto } from './dto/create-prompt.dto.js';
+import { FindPromptsQueryDto } from './dto/find-prompts-query.dto.js';
 import { PromptResponseDto } from './dto/prompt-response.dto.js';
 import { UpdatePromptDto } from './dto/update-prompt.dto.js';
 
@@ -14,12 +15,14 @@ export class PromptsService {
       data: {
         name: dto.name,
         message: dto.message,
+        kind: dto.kind ?? JobKind.communication,
       },
     });
   }
 
-  findAll(): Promise<PromptResponseDto[]> {
+  findAll(query: FindPromptsQueryDto): Promise<PromptResponseDto[]> {
     return this.prisma.prompt.findMany({
+      where: { kind: query.kind },
       orderBy: { createdAt: 'desc' },
     });
   }
@@ -31,6 +34,7 @@ export class PromptsService {
         data: {
           name: dto.name,
           message: dto.message,
+          kind: dto.kind,
         },
       });
     } catch (error) {

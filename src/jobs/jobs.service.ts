@@ -2,8 +2,9 @@ import { BadRequestException, Injectable, NotFoundException } from '@nestjs/comm
 import { isUUID } from 'class-validator';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { JobsGateway } from './jobs.gateway.js';
-import { JobStatus, Prisma, TaskStatus } from '../generated/prisma/client.js';
+import { JobKind, JobStatus, Prisma, TaskStatus } from '../generated/prisma/client.js';
 import { CreateJobDto } from './dto/create-job.dto.js';
+import { CreateSeoJobDto } from './dto/create-seo-job.dto.js';
 import { FindJobsQueryDto } from './dto/find-jobs-query.dto.js';
 import { JobResponseDto } from './dto/job-response.dto.js';
 import { PaginatedJobsResponseDto } from './dto/paginated-jobs-response.dto.js';
@@ -30,6 +31,7 @@ export class JobsService {
    */
   async findAll(query: FindJobsQueryDto): Promise<PaginatedJobsResponseDto> {
     const where: Prisma.JobWhereInput = {
+      kind: query.kind,
       messageType: query.jobType && query.jobType.length > 0 ? { in: query.jobType } : undefined,
       runnedById: query.runnedById,
     };
@@ -73,6 +75,7 @@ export class JobsService {
     try {
       const job = await this.prisma.job.create({
         data: {
+          kind: JobKind.communication,
           // Record<string, unknown> проходить валідацію class-validator як
           // "непорожній об'єкт", але Prisma для JSON-полів вимагає власний
           // рекурсивний тип, а не `unknown` — тому явний каст саме тут.
@@ -109,6 +112,28 @@ export class JobsService {
 
       throw error;
     }
+  }
+
+  /**
+   * SEO-джоба: kind, runnedById і runDate виставляє сервер. Поля communication
+   * (board, messageType, ruleIds, ...) тут не задаються — лишаються null.
+   */
+  async createSeo(dto: CreateSeoJobDto, createdByUserId: string): Promise<JobResponseDto> {
+    const job = await this.prisma.job.create({
+      data: {
+        kind: JobKind.seo,
+        steps: dto.steps as Prisma.InputJsonValue,
+        language: dto.language.toUpperCase(),
+        llm: dto.llm,
+        prompt: dto.prompt,
+        pageTask: dto.pageTask,
+        runnedById: createdByUserId,
+        runDate: new Date(),
+      },
+      include: JOB_WITH_RULES_INCLUDE,
+    });
+
+    return JobsService.toResponseDto(job);
   }
 
   /** Оновлення прогресу виконання джоби — викликає n8n через API-ключ. */

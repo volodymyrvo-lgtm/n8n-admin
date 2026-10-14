@@ -1,14 +1,21 @@
-import { Board, JobStatus, MessageType, TaskStatus } from '../../generated/prisma/client.js';
+import { Board, JobKind, JobStatus, MessageType, TaskStatus } from '../../generated/prisma/client.js';
 
 export class JobResponseDto {
   id!: string;
   /** Довільний JSON — форму (і статуси кроків) визначає n8n. */
   steps!: unknown;
-  jobType!: string;
-  taskStatus!: TaskStatus;
-  messageType!: MessageType;
-  board!: Board;
-  taskDescription!: string;
+  /** Вид джоби: communication (розсилки CRM) або seo (генерація SEO-сторінок). */
+  kind!: JobKind;
+  /** jobType/taskStatus/messageType/board/taskDescription — лише для kind = communication, у seo-джобах null. */
+  jobType!: string | null;
+  taskStatus!: TaskStatus | null;
+  messageType!: MessageType | null;
+  board!: Board | null;
+  taskDescription!: string | null;
+  /** Поля SEO-джоби (kind = seo), у communication-джобах null. */
+  language!: string | null;
+  prompt!: string | null;
+  pageTask!: string | null;
   status!: JobStatus;
   runDate!: Date | null;
   createdAt!: Date;

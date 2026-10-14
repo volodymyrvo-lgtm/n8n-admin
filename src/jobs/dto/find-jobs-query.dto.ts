@@ -1,6 +1,6 @@
 import { Transform, Type } from 'class-transformer';
 import { ArrayNotEmpty, IsArray, IsEnum, IsInt, IsOptional, IsUUID, Max, Min } from 'class-validator';
-import { MessageType } from '../../generated/prisma/client.js';
+import { JobKind, MessageType } from '../../generated/prisma/client.js';
 
 /**
  * Query-параметри GET /jobs. У ТЗ фронта фільтр названо "jobType" зі
@@ -9,6 +9,15 @@ import { MessageType } from '../../generated/prisma/client.js';
  * тут не фільтрується).
  */
 export class FindJobsQueryDto {
+  /**
+   * Вид джоб у списку. За замовчуванням communication — щоб наявна
+   * сторінка джоб не отримала SEO-джоби з null-полями; сторінка SEO просить
+   * kind=seo явно.
+   */
+  @IsOptional()
+  @IsEnum(JobKind)
+  kind: JobKind = JobKind.communication;
+
   @IsOptional()
   @Type(() => Number)
   @IsInt()

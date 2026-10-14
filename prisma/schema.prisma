@@ -40,6 +40,15 @@ enum MessageType {
   @@map("message_type")
 }
 
+/// Вид джоби: розсилки CRM (communication) чи генерація SEO-сторінок (seo).
+/// Для всіх наявних джоб значення — communication (DEFAULT у БД).
+enum JobKind {
+  communication
+  seo
+
+  @@map("job_kind")
+}
+
 enum Board {
   ONBOARDING
   onboarding_comms
@@ -52,6 +61,8 @@ model Prompt {
   id        String   @id @default(uuid()) @db.Uuid
   name      String
   message   String
+  /// Для яких джоб промпт: communication (розсилки) чи seo. Наявні промпти — communication.
+  kind      JobKind  @default(communication)
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
 
@@ -86,13 +97,25 @@ model Rule {
 }
 
 model Job {
-  id              String      @id @default(uuid()) @db.Uuid
-  steps           Json        @db.JsonB
-  jobType         String      @map("job_type")
-  taskStatus      TaskStatus  @map("task_status")
-  messageType     MessageType @map("message_type")
-  board           Board
-  taskDescription String      @map("task_description")
+  id    String  @id @default(uuid()) @db.Uuid
+  steps Json    @db.JsonB
+  kind  JobKind @default(communication)
+
+  /// Поля нижче обов'язкові лише для kind = communication (nullable в БД,
+  /// бо SEO-джобам вони не потрібні). Цілісність тримає CHECK-обмеження
+  /// jobs_kind_required_fields_check у міграції, а не схема Prisma.
+  jobType         String?      @map("job_type")
+  taskStatus      TaskStatus?  @map("task_status")
+  messageType     MessageType? @map("message_type")
+  board           Board?
+  taskDescription String?      @map("task_description")
+
+  /// Поля SEO-джоби (kind = seo), у communication-джобах — null.
+  language String?
+  /// Просто рядок як є, без розбору й типізації.
+  prompt   String?
+  pageTask String? @map("page_task")
+
   status          JobStatus   @default(pending)
   runDate         DateTime?   @map("run_date") @db.Timestamptz(3)
   createdAt       DateTime    @default(now()) @map("created_at") @db.Timestamptz(3)
@@ -128,6 +151,7 @@ model Job {
 
   @@index([status])
   @@index([runnedById])
+  @@index([kind, createdAt])
   @@map("jobs")
 }
 
