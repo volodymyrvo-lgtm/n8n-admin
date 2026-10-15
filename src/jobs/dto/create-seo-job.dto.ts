@@ -1,5 +1,16 @@
 import { Transform } from 'class-transformer';
-import { IsNotEmptyObject, IsObject, IsString, Matches, MaxLength, MinLength } from 'class-validator';
+import {
+  ArrayNotEmpty,
+  ArrayUnique,
+  IsArray,
+  IsNotEmptyObject,
+  IsObject,
+  IsString,
+  IsUUID,
+  Matches,
+  MaxLength,
+  MinLength,
+} from 'class-validator';
 
 const trim = ({ value }: { value: unknown }): unknown => (typeof value === 'string' ? value.trim() : value);
 
@@ -40,4 +51,14 @@ export class CreateSeoJobDto {
   @MinLength(1)
   @MaxLength(500)
   pageTask!: string;
+
+  /**
+   * id правил, що застосовуються до джоби. Мають існувати й бути саме
+   * SEO-правилами (kind = seo) — це перевіряє JobsService.createSeo().
+   */
+  @IsArray()
+  @ArrayNotEmpty()
+  @ArrayUnique()
+  @IsUUID('all', { each: true })
+  ruleIds!: string[];
 }

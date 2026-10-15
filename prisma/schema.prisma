@@ -88,6 +88,8 @@ model Rule {
   ruleName  String   @map("rule_name")
   ruleSet   Json     @map("rule_set") @db.JsonB
   setType   String[] @map("set_type")
+  /// Для яких джоб правило: communication (розсилки) чи seo. Наявні правила — communication.
+  kind      JobKind  @default(communication)
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
 

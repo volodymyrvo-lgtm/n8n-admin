@@ -72,6 +72,8 @@ export class JobsService {
     const sm = dto.sm.trim() === '' ? null : dto.sm;
     const llm = dto.llm.trim() === '' ? null : dto.llm;
 
+    await this.assertRulesMatchKind(dto.ruleIds, JobKind.communication);
+
     try {
       const job = await this.prisma.job.create({
         data: {
@@ -116,24 +118,36 @@ export class JobsService {
 
   /**
    * SEO-джоба: kind, runnedById і runDate виставляє сервер. Поля communication
-   * (board, messageType, ruleIds, ...) тут не задаються — лишаються null.
+   * (board, messageType, ...) тут не задаються — лишаються null. ruleIds
+   * приймаються, але лише id SEO-правил.
    */
   async createSeo(dto: CreateSeoJobDto, createdByUserId: string): Promise<JobResponseDto> {
-    const job = await this.prisma.job.create({
-      data: {
-        kind: JobKind.seo,
-        steps: dto.steps as Prisma.InputJsonValue,
-        language: dto.language.toUpperCase(),
-        llm: dto.llm,
-        prompt: dto.prompt,
-        pageTask: dto.pageTask,
-        runnedById: createdByUserId,
-        runDate: new Date(),
-      },
-      include: JOB_WITH_RULES_INCLUDE,
-    });
+    await this.assertRulesMatchKind(dto.ruleIds, JobKind.seo);
 
-    return JobsService.toResponseDto(job);
+    try {
+      const job = await this.prisma.job.create({
+        data: {
+          kind: JobKind.seo,
+          steps: dto.steps as Prisma.InputJsonValue,
+          language: dto.language.toUpperCase(),
+          llm: dto.llm,
+          prompt: dto.prompt,
+          pageTask: dto.pageTask,
+          runnedById: createdByUserId,
+          runDate: new Date(),
+          jobRules: { create: dto.ruleIds.map((ruleId) => ({ ruleId })) },
+        },
+        include: JOB_WITH_RULES_INCLUDE,
+      });
+
+      return JobsService.toResponseDto(job);
+    } catch (error) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2003') {
+        throw new BadRequestException('One or more ruleIds do not exist');
+      }
+
+      throw error;
+    }
   }
 
   /** Оновлення прогресу виконання джоби — викликає n8n через API-ключ. */
@@ -208,6 +222,31 @@ export class JobsService {
   async removeAll(): Promise<{ deletedCount: number }> {
     const { count } = await this.prisma.job.deleteMany({});
     return { deletedCount: count };
+  }
+
+  /**
+   * Усі ruleIds мають існувати й мати вказаний kind: communication-джоба може
+   * посилатись лише на communication-правила, SEO-джоба — лише на SEO. Вид
+   * правила задає роут, яким його створили, тож клієнт не може "підсунути"
+   * правило чужого виду.
+   */
+  private async assertRulesMatchKind(ruleIds: string[], kind: JobKind): Promise<void> {
+    if (ruleIds.length === 0) {
+      return;
+    }
+
+    const rules = await this.prisma.rule.findMany({
+      where: { id: { in: ruleIds } },
+      select: { id: true, kind: true },
+    });
+
+    if (rules.length !== new Set(ruleIds).size) {
+      throw new BadRequestException('One or more ruleIds do not exist');
+    }
+
+    if (rules.some((rule) => rule.kind !== kind)) {
+      throw new BadRequestException(`ruleIds must reference rules of kind "${kind}"`);
+    }
   }
 
   /**

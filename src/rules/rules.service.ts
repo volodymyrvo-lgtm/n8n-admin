@@ -1,7 +1,8 @@
 import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
-import { Prisma } from '../generated/prisma/client.js';
+import { JobKind, Prisma } from '../generated/prisma/client.js';
 import { CreateRuleDto } from './dto/create-rule.dto.js';
+import { FindRulesQueryDto } from './dto/find-rules-query.dto.js';
 import { RuleResponseDto } from './dto/rule-response.dto.js';
 import { UpdateRuleDto } from './dto/update-rule.dto.js';
 
@@ -9,7 +10,8 @@ import { UpdateRuleDto } from './dto/update-rule.dto.js';
 export class RulesService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async create(dto: CreateRuleDto): Promise<RuleResponseDto> {
+  /** Вид правила задає роут (POST /rules → communication, POST /rules/seo → seo), а не тіло запиту. */
+  async create(dto: CreateRuleDto, kind: JobKind): Promise<RuleResponseDto> {
     const rule = await this.prisma.rule.create({
       data: {
         ruleName: dto.ruleName,
@@ -18,14 +20,16 @@ export class RulesService {
         // рекурсивний тип, а не `unknown` — тому явний каст саме тут.
         ruleSet: dto.ruleSet as Prisma.InputJsonValue,
         setType: dto.setType,
+        kind,
       },
     });
 
     return rule;
   }
 
-  findAll(): Promise<RuleResponseDto[]> {
+  findAll(query: FindRulesQueryDto): Promise<RuleResponseDto[]> {
     return this.prisma.rule.findMany({
+      where: { kind: query.kind },
       orderBy: { createdAt: 'desc' },
     });
   }

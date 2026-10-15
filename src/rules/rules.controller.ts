@@ -9,13 +9,15 @@ import {
   ParseUUIDPipe,
   Patch,
   Post,
+  Query,
   UseGuards,
 } from '@nestjs/common';
 import { Roles } from '../auth/decorators/roles.decorator.js';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard.js';
 import { RolesGuard } from '../auth/guards/roles.guard.js';
-import { Role } from '../generated/prisma/client.js';
+import { JobKind, Role } from '../generated/prisma/client.js';
 import { CreateRuleDto } from './dto/create-rule.dto.js';
+import { FindRulesQueryDto } from './dto/find-rules-query.dto.js';
 import { RuleResponseDto } from './dto/rule-response.dto.js';
 import { UpdateRuleDto } from './dto/update-rule.dto.js';
 import { RulesService } from './rules.service.js';
@@ -35,12 +37,24 @@ export class RulesController {
   @Roles(Role.admin)
   @HttpCode(HttpStatus.CREATED)
   create(@Body() dto: CreateRuleDto): Promise<RuleResponseDto> {
-    return this.rulesService.create(dto);
+    return this.rulesService.create(dto, JobKind.communication);
+  }
+
+  /**
+   * Правило для SEO-джоб. Окремий роут, щоб вид задавав бекенд, а не фронт
+   * (так само, як POST /jobs/seo): тіло те саме, що в POST /rules.
+   */
+  @Post('seo')
+  @UseGuards(RolesGuard)
+  @Roles(Role.admin)
+  @HttpCode(HttpStatus.CREATED)
+  createSeo(@Body() dto: CreateRuleDto): Promise<RuleResponseDto> {
+    return this.rulesService.create(dto, JobKind.seo);
   }
 
   @Get()
-  findAll(): Promise<RuleResponseDto[]> {
-    return this.rulesService.findAll();
+  findAll(@Query() query: FindRulesQueryDto): Promise<RuleResponseDto[]> {
+    return this.rulesService.findAll(query);
   }
 
   @Patch(':id')
