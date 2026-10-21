@@ -10,6 +10,8 @@ datasource db {
 enum Role {
   admin
   user
+  reader
+  analyst
 
   @@map("role")
 }
@@ -147,6 +149,7 @@ model Job {
   tableUrl String? @map("table_url")
 
   jobRules JobRule[]
+  errors   JobError[]
 
   runnedById String? @map("runned_by") @db.Uuid
   runnedBy   User?   @relation(fields: [runnedById], references: [id], onDelete: SetNull, onUpdate: Cascade)
@@ -211,4 +214,19 @@ model LlmUsageDaily {
   @@index([date])
   @@index([type, date])
   @@map("llm_usage_daily")
+}
+
+/// Помилки виконання джоби. Одна джоба може мати кілька записів. Видалення
+/// джоби (у т.ч. нічне прибирання старих) каскадом прибирає і її помилки.
+model JobError {
+  id        String   @id @default(uuid(7)) @db.Uuid
+  jobId     String   @map("job_id") @db.Uuid
+  /// Довільний JSON — форму визначає n8n (повідомлення, вузол, стек тощо).
+  error     Json     @db.JsonB
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  job Job @relation(fields: [jobId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+
+  @@index([jobId])
+  @@map("job_errors")
 }

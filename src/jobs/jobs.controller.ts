@@ -25,13 +25,14 @@ export class JobsController {
   }
 
   /**
-   * Створити джобу може будь-який залогінений юзер, включно з role: user —
-   * це єдиний виняток серед "створення/видалення/редагування", решта таких
-   * операцій (users/rules/prompts) обмежені RolesGuard'ом до admin.
+   * Створити джобу можуть admin і user — це єдиний виняток серед
+   * "створення/видалення/редагування", решта таких операцій (users/rules/
+   * prompts) обмежені RolesGuard'ом до admin. reader і analyst лише читають.
    * Джоба одразу пов'язується зі створювачем через runnedBy.
    */
   @Post()
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.admin, Role.user)
   @HttpCode(HttpStatus.CREATED)
   create(@Body() dto: CreateJobDto, @CurrentUser() user: JwtPayload): Promise<JobResponseDto> {
     return this.jobsService.create(dto, user.sub);
@@ -43,7 +44,8 @@ export class JobsController {
    * тут відхиляються як зайві).
    */
   @Post('seo')
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.admin, Role.user)
   @HttpCode(HttpStatus.CREATED)
   createSeo(@Body() dto: CreateSeoJobDto, @CurrentUser() user: JwtPayload): Promise<JobResponseDto> {
     return this.jobsService.createSeo(dto, user.sub);
