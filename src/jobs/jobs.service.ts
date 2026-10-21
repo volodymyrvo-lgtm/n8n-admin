@@ -23,6 +23,20 @@ export class JobsService {
     private readonly jobsGateway: JobsGateway,
   ) {}
 
+  /** Одна джоба разом із правилами; NotFoundException, якщо id не існує. */
+  async findOne(id: string): Promise<JobResponseDto> {
+    const job = await this.prisma.job.findUnique({
+      where: { id },
+      include: JOB_WITH_RULES_INCLUDE,
+    });
+
+    if (!job) {
+      throw new NotFoundException(`Job "${id}" not found`);
+    }
+
+    return JobsService.toResponseDto(job);
+  }
+
   /**
    * Пагінований список джоб згідно з ТЗ фронта: page/limit (1-based),
    * опціональні фільтри по messageType ("jobType" у query — так назвав

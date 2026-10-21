@@ -150,3 +150,32 @@ describe('GET /jobs — фільтр kind', () => {
     await expect(parse(FindJobsQueryDto, { kind: 'other' }, 'query')).rejects.toThrow();
   });
 });
+
+describe('GET /jobs/:id — JobsService.findOne', () => {
+  const makeFindOneService = (row: Record<string, unknown> | null) => {
+    const findUnique = vi.fn().mockResolvedValue(row);
+    const service = new JobsService({ job: { findUnique } } as never, { emitJobUpdated: vi.fn() } as never);
+    return { service, findUnique };
+  };
+
+  it('повертає джобу разом із правилами, включно з SEO-полями', async () => {
+    const { service, findUnique } = makeFindOneService({
+      id: 'job-1',
+      kind: JobKind.seo,
+      spend: {},
+      language: 'en',
+      pageTask: 'R048',
+      jobRules: [{ ruleId: RULE_A }],
+    });
+
+    const result = await service.findOne('job-1');
+
+    expect(findUnique).toHaveBeenCalledWith(expect.objectContaining({ where: { id: 'job-1' } }));
+    expect(result).toMatchObject({ id: 'job-1', kind: JobKind.seo, language: 'en', pageTask: 'R048' });
+  });
+
+  it('кидає 404, якщо джоби немає', async () => {
+    const { service } = makeFindOneService(null);
+    await expect(service.findOne('missing')).rejects.toThrow('Job "missing" not found');
+  });
+});

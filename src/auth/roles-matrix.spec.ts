@@ -107,6 +107,7 @@ describe('Матриця ролей', () => {
     const allowed = (key: string) => canCall(Role.reader, routes.find((r) => r.key === key)!);
 
     expect(allowed('GET /jobs')).toBe(true);
+    expect(allowed('GET /jobs/:id')).toBe(true);
     expect(allowed('GET /rules')).toBe(true);
     expect(allowed('GET /prompts')).toBe(true);
     expect(allowed('GET /glossaries')).toBe(true);
@@ -120,7 +121,7 @@ describe('Матриця ролей', () => {
   it('analyst додатково бачить дашборд витрат і помилки, але нічого не створює', () => {
     const allowed = (key: string) => canCall(Role.analyst, routes.find((r) => r.key === key)!);
 
-    for (const key of ['GET /jobs', 'GET /rules', 'GET /prompts', 'GET /llm-usage', 'GET /llm-usage/summary', 'GET /llm-usage/filters', 'GET /job-errors']) {
+    for (const key of ['GET /jobs', 'GET /jobs/:id', 'GET /rules', 'GET /prompts', 'GET /llm-usage', 'GET /llm-usage/summary', 'GET /llm-usage/filters', 'GET /job-errors']) {
       expect(allowed(key), key).toBe(true);
     }
     expect(allowed('POST /jobs')).toBe(false);

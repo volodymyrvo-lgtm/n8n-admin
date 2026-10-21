@@ -24,6 +24,13 @@ export class JobsController {
     return this.jobsService.findAll(query);
   }
 
+  /** Повертає одну джобу з правилами за id; 404, якщо такої немає. Доступно будь-якій авторизованій ролі (як і GET /jobs). */
+  @Get(':id')
+  @UseGuards(JwtAuthGuard)
+  findOne(@Param('id', ParseUUIDPipe) id: string): Promise<JobResponseDto> {
+    return this.jobsService.findOne(id);
+  }
+
   /**
    * Створити джобу можуть admin і user — це єдиний виняток серед
    * "створення/видалення/редагування", решта таких операцій (users/rules/
