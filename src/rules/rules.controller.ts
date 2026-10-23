@@ -52,6 +52,15 @@ export class RulesController {
     return this.rulesService.create(dto, JobKind.seo);
   }
 
+  /** Правило для design-джоб. Окремий роут з тієї ж причини: вид задає бекенд, а не фронт. */
+  @Post('design')
+  @UseGuards(RolesGuard)
+  @Roles(Role.admin)
+  @HttpCode(HttpStatus.CREATED)
+  createDesign(@Body() dto: CreateRuleDto): Promise<RuleResponseDto> {
+    return this.rulesService.create(dto, JobKind.design);
+  }
+
   @Get()
   findAll(@Query() query: FindRulesQueryDto): Promise<RuleResponseDto[]> {
     return this.rulesService.findAll(query);

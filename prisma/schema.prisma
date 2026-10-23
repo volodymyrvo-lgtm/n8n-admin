@@ -47,6 +47,7 @@ enum MessageType {
 enum JobKind {
   communication
   seo
+  design
 
   @@map("job_kind")
 }
@@ -150,6 +151,7 @@ model Job {
 
   jobRules JobRule[]
   errors   JobError[]
+  banners  Banner[]
 
   runnedById String? @map("runned_by") @db.Uuid
   runnedBy   User?   @relation(fields: [runnedById], references: [id], onDelete: SetNull, onUpdate: Cascade)
@@ -229,4 +231,41 @@ model JobError {
 
   @@index([jobId])
   @@map("job_errors")
+}
+
+/// Статус банера в черзі модерації. approved → sending → sent/send_failed
+/// описують відправку кастомеру (файл видаляється зі Storage лише після sent).
+enum BannerStatus {
+  pending
+  approved
+  rejected
+  sending
+  sent
+  send_failed
+
+  @@map("banner_status")
+}
+
+/// Банер із Figma, що чекає модерації. Сама картинка лежить у приватному
+/// бакеті Supabase Storage за storagePath (у БД лише метадані), тож список
+/// банерів ніколи не тягне байти. jobId необов'язковий: джобу, що породила
+/// банер, видалять — банер лишається (SetNull), бо файл у Storage живе сам.
+model Banner {
+  id             String       @id @default(uuid(7)) @db.Uuid
+  jobId          String?      @map("job_id") @db.Uuid
+  /// Назва фрейму/картинки у Figma. НЕ унікальна: банер можуть перегенерувати.
+  figmaImageName String       @map("figma_image_name")
+  /// Шлях файлу в бакеті (<bannerId>/<uuid>.png). Внутрішнє поле, у API не віддається.
+  storagePath    String       @map("storage_path")
+  mimeType       String       @default("image/png") @map("mime_type")
+  sizeBytes      Int          @map("size_bytes")
+  status         BannerStatus @default(pending)
+  createdAt      DateTime     @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt      DateTime     @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  job Job? @relation(fields: [jobId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+
+  @@index([status, createdAt])
+  @@index([jobId])
+  @@map("banners")
 }

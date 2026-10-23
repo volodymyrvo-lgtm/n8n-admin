@@ -4,9 +4,12 @@ export class JobResponseDto {
   id!: string;
   /** Довільний JSON — форму (і статуси кроків) визначає n8n. */
   steps!: unknown;
-  /** Вид джоби: communication (розсилки CRM) або seo (генерація SEO-сторінок). */
+  /** Вид джоби: communication (розсилки CRM), seo (генерація SEO-сторінок) або design. */
   kind!: JobKind;
-  /** jobType/taskStatus/messageType/board/taskDescription — лише для kind = communication, у seo-джобах null. */
+  /**
+   * jobType/taskStatus/messageType/board — лише для kind = communication, в інших null.
+   * taskDescription є в communication і design, у seo-джобах null.
+   */
   jobType!: string | null;
   taskStatus!: TaskStatus | null;
   messageType!: MessageType | null;

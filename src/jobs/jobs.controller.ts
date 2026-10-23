@@ -7,6 +7,7 @@ import { RolesGuard } from '../auth/guards/roles.guard.js';
 import type { JwtPayload } from '../auth/types/jwt-payload.type.js';
 import { Role } from '../generated/prisma/client.js';
 import { CreateJobDto } from './dto/create-job.dto.js';
+import { CreateDesignJobDto } from './dto/create-design-job.dto.js';
 import { CreateSeoJobDto } from './dto/create-seo-job.dto.js';
 import { FindJobsQueryDto } from './dto/find-jobs-query.dto.js';
 import { JobResponseDto } from './dto/job-response.dto.js';
@@ -56,6 +57,19 @@ export class JobsController {
   @HttpCode(HttpStatus.CREATED)
   createSeo(@Body() dto: CreateSeoJobDto, @CurrentUser() user: JwtPayload): Promise<JobResponseDto> {
     return this.jobsService.createSeo(dto, user.sub);
+  }
+
+  /**
+   * Створює design-джобу (kind = design): steps, llm і taskDescription.
+   * Окремий ендпоінт з тієї ж причини, що й /jobs/seo: kind виставляє бекенд,
+   * а зайві поля (language, prompt, ruleIds, ...) відхиляються.
+   */
+  @Post('design')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.admin, Role.user)
+  @HttpCode(HttpStatus.CREATED)
+  createDesign(@Body() dto: CreateDesignJobDto, @CurrentUser() user: JwtPayload): Promise<JobResponseDto> {
+    return this.jobsService.createDesign(dto, user.sub);
   }
 
   /** Оновлює прогрес виконання джоби — викликає n8n за окремим API-ключем (не JWT). */

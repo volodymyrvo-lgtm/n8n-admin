@@ -10,7 +10,7 @@ import { UpdateRuleDto } from './dto/update-rule.dto.js';
 export class RulesService {
   constructor(private readonly prisma: PrismaService) {}
 
-  /** Вид правила задає роут (POST /rules → communication, POST /rules/seo → seo), а не тіло запиту. */
+  /** Вид правила задає роут (POST /rules → communication, POST /rules/seo → seo, POST /rules/design → design), а не тіло запиту. */
   async create(dto: CreateRuleDto, kind: JobKind): Promise<RuleResponseDto> {
     const rule = await this.prisma.rule.create({
       data: {

@@ -11,8 +11,8 @@ import { JobKind, MessageType } from '../../generated/prisma/client.js';
 export class FindJobsQueryDto {
   /**
    * Вид джоб у списку. За замовчуванням communication — щоб наявна
-   * сторінка джоб не отримала SEO-джоби з null-полями; сторінка SEO просить
-   * kind=seo явно.
+   * сторінка джоб не отримала SEO- чи design-джоби з null-полями; відповідна
+   * сторінка просить kind=seo або kind=design явно.
    */
   @IsOptional()
   @IsEnum(JobKind)

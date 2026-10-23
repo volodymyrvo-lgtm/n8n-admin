@@ -27,8 +27,10 @@ describe('Rules kind', () => {
     const { service, create } = makeService();
     await service.create(await parse(CreateRuleDto, VALID_RULE), JobKind.communication);
     await service.create(await parse(CreateRuleDto, VALID_RULE), JobKind.seo);
+    await service.create(await parse(CreateRuleDto, VALID_RULE), JobKind.design);
     expect((create.mock.calls[0]![0] as { data: { kind: JobKind } }).data.kind).toBe(JobKind.communication);
     expect((create.mock.calls[1]![0] as { data: { kind: JobKind } }).data.kind).toBe(JobKind.seo);
+    expect((create.mock.calls[2]![0] as { data: { kind: JobKind } }).data.kind).toBe(JobKind.design);
   });
 
   it('клієнт не може передати kind ні при створенні, ні при оновленні', async () => {
@@ -42,6 +44,8 @@ describe('Rules kind', () => {
     await service.findAll(await parse(FindRulesQueryDto, { kind: 'seo' }, 'query'));
     expect((findMany.mock.calls[0]![0] as { where: { kind: JobKind } }).where.kind).toBe(JobKind.communication);
     expect((findMany.mock.calls[1]![0] as { where: { kind: JobKind } }).where.kind).toBe(JobKind.seo);
+    await service.findAll(await parse(FindRulesQueryDto, { kind: 'design' }, 'query'));
+    expect((findMany.mock.calls[2]![0] as { where: { kind: JobKind } }).where.kind).toBe(JobKind.design);
     await expect(parse(FindRulesQueryDto, { kind: 'x' }, 'query')).rejects.toThrow();
   });
 

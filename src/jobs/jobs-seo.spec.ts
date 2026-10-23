@@ -1,6 +1,7 @@
 import { ValidationPipe } from '@nestjs/common';
 import { describe, expect, it, vi } from 'vitest';
 import { JobKind } from '../generated/prisma/client.js';
+import { CreateDesignJobDto } from './dto/create-design-job.dto.js';
 import { CreateSeoJobDto } from './dto/create-seo-job.dto.js';
 import { FindJobsQueryDto } from './dto/find-jobs-query.dto.js';
 import { JobsService } from './jobs.service.js';
@@ -177,5 +178,58 @@ describe('GET /jobs/:id — JobsService.findOne', () => {
   it('кидає 404, якщо джоби немає', async () => {
     const { service } = makeFindOneService(null);
     await expect(service.findOne('missing')).rejects.toThrow('Job "missing" not found');
+  });
+});
+
+const VALID_DESIGN = {
+  steps: { step1: { status: 'pending' } },
+  llm: 'gpt_5_6_sol',
+  taskDescription: 'Банер до Кено, 3 розміри',
+};
+
+describe('POST /jobs/design — CreateDesignJobDto', () => {
+  it('приймає steps, llm і taskDescription, обрізає пробіли', async () => {
+    const dto = await parse(CreateDesignJobDto, { ...VALID_DESIGN, taskDescription: '  Банер  ' });
+    expect(dto.taskDescription).toBe('Банер');
+  });
+
+  it('усі три поля обов\'язкові', async () => {
+    for (const key of ['steps', 'llm', 'taskDescription'] as const) {
+      const { [key]: _omitted, ...rest } = VALID_DESIGN;
+      await expect(parse(CreateDesignJobDto, rest), key).rejects.toThrow();
+    }
+    await expect(parse(CreateDesignJobDto, { ...VALID_DESIGN, taskDescription: '   ' })).rejects.toThrow();
+  });
+
+  it('відхиляє kind, поля SEO і communication та ruleIds як зайві', async () => {
+    for (const extra of [{ kind: 'design' }, { language: 'en' }, { prompt: 'x' }, { pageTask: 'x' }, { board: 'ONBOARDING' }, { ruleIds: [RULE_A] }]) {
+      await expect(parse(CreateDesignJobDto, { ...VALID_DESIGN, ...extra }), JSON.stringify(extra)).rejects.toThrow();
+    }
+  });
+});
+
+describe('JobsService.createDesign', () => {
+  it('виставляє kind=design, runnedById, runDate; правил і полів інших видів немає', async () => {
+    const { service, create } = makeService();
+    const dto = await parse(CreateDesignJobDto, VALID_DESIGN);
+
+    const result = await service.createDesign(dto, 'user-1');
+
+    const { data } = create.mock.calls[0]![0] as { data: Record<string, unknown> };
+    expect(data).toMatchObject({
+      kind: JobKind.design,
+      llm: 'gpt_5_6_sol',
+      taskDescription: 'Банер до Кено, 3 розміри',
+      runnedById: 'user-1',
+    });
+    expect(data['runDate']).toBeInstanceOf(Date);
+    for (const absent of ['jobRules', 'language', 'prompt', 'pageTask', 'board', 'messageType']) {
+      expect(data, absent).not.toHaveProperty(absent);
+    }
+    expect(result).toMatchObject({ kind: JobKind.design, taskDescription: 'Банер до Кено, 3 розміри', ruleIds: [] });
+  });
+
+  it('GET /jobs?kind=design приймається фільтром', async () => {
+    await expect(parse(FindJobsQueryDto, { kind: 'design' }, 'query')).resolves.toMatchObject({ kind: JobKind.design });
   });
 });

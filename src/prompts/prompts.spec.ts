@@ -50,3 +50,14 @@ describe('Prompts kind', () => {
     await expect(parse(UpdatePromptDto, { kind: 'bad' })).rejects.toThrow();
   });
 });
+
+describe('Prompts kind=design', () => {
+  it('промпт можна створити з kind=design, список фільтрується за ним', async () => {
+    const { service, create, findMany } = makeService();
+    await service.create(await parse(CreatePromptDto, { name: 'p', message: 'm', kind: 'design' }));
+    expect((create.mock.calls[0]![0] as { data: { kind: JobKind } }).data.kind).toBe(JobKind.design);
+
+    await service.findAll(await parse(FindPromptsQueryDto, { kind: 'design' }, 'query'));
+    expect((findMany.mock.calls[0]![0] as { where: { kind: JobKind } }).where.kind).toBe(JobKind.design);
+  });
+});

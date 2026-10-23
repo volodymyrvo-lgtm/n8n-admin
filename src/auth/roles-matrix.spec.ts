@@ -1,6 +1,7 @@
 import 'reflect-metadata';
 import { RequestMethod } from '@nestjs/common';
 import { describe, expect, it } from 'vitest';
+import { BannersController } from '../banners/banners.controller.js';
 import { GlossariesController } from '../glossaries/glossaries.controller.js';
 import { Role } from '../generated/prisma/client.js';
 import { JobErrorsController } from '../job-errors/job-errors.controller.js';
@@ -29,6 +30,7 @@ const CONTROLLERS = [
   UsersController,
   JobsController,
   JobErrorsController,
+  BannersController,
   LlmUsageController,
   RulesController,
   PromptsController,
@@ -90,7 +92,7 @@ describe('Матриця ролей', () => {
   it('маршрути для n8n (X-API-Key) не залежать від ролей', () => {
     const apiKeyRoutes = routes.filter((route) => route.guards.includes(ApiKeyGuard)).map((route) => route.key);
     expect(apiKeyRoutes.sort()).toEqual(
-      ['PATCH /jobs/:id', 'POST /job-errors', 'POST /llm-usage'].sort(),
+      ['PATCH /jobs/:id', 'POST /banners', 'POST /job-errors', 'POST /llm-usage'].sort(),
     );
     for (const route of routes.filter((r) => r.guards.includes(ApiKeyGuard))) {
       expect(route.roles, route.key).toBeUndefined();
@@ -108,6 +110,7 @@ describe('Матриця ролей', () => {
 
     expect(allowed('GET /jobs')).toBe(true);
     expect(allowed('GET /jobs/:id')).toBe(true);
+    expect(allowed('GET /banners')).toBe(true);
     expect(allowed('GET /rules')).toBe(true);
     expect(allowed('GET /prompts')).toBe(true);
     expect(allowed('GET /glossaries')).toBe(true);
@@ -121,11 +124,12 @@ describe('Матриця ролей', () => {
   it('analyst додатково бачить дашборд витрат і помилки, але нічого не створює', () => {
     const allowed = (key: string) => canCall(Role.analyst, routes.find((r) => r.key === key)!);
 
-    for (const key of ['GET /jobs', 'GET /jobs/:id', 'GET /rules', 'GET /prompts', 'GET /llm-usage', 'GET /llm-usage/summary', 'GET /llm-usage/filters', 'GET /job-errors']) {
+    for (const key of ['GET /jobs', 'GET /jobs/:id', 'GET /banners', 'GET /rules', 'GET /prompts', 'GET /llm-usage', 'GET /llm-usage/summary', 'GET /llm-usage/filters', 'GET /job-errors']) {
       expect(allowed(key), key).toBe(true);
     }
     expect(allowed('POST /jobs')).toBe(false);
     expect(allowed('POST /jobs/seo')).toBe(false);
+    expect(allowed('POST /jobs/design')).toBe(false);
   });
 
   it('user створює джоби (як і раніше), але не адмінські операції', () => {
@@ -133,12 +137,16 @@ describe('Матриця ролей', () => {
 
     expect(allowed('POST /jobs')).toBe(true);
     expect(allowed('POST /jobs/seo')).toBe(true);
+    expect(allowed('POST /jobs/design')).toBe(true);
     expect(allowed('GET /llm-usage/summary')).toBe(true);
     expect(allowed('GET /job-errors')).toBe(true);
 
     expect(allowed('DELETE /jobs')).toBe(false);
+    expect(allowed('DELETE /banners')).toBe(false);
+    expect(allowed('DELETE /banners/:id')).toBe(false);
     expect(allowed('POST /rules')).toBe(false);
     expect(allowed('POST /rules/seo')).toBe(false);
+    expect(allowed('POST /rules/design')).toBe(false);
     expect(allowed('POST /prompts')).toBe(false);
   });
 

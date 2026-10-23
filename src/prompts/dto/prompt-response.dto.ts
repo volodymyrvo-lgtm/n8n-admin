@@ -4,7 +4,7 @@ export class PromptResponseDto {
   id!: string;
   name!: string;
   message!: string;
-  /** Для яких джоб промпт: communication або seo. */
+  /** Для яких джоб промпт: communication, seo або design. */
   kind!: JobKind;
   createdAt!: Date;
   updatedAt!: Date;

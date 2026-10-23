@@ -4,6 +4,7 @@ import { PrismaService } from '../prisma/prisma.service.js';
 import { JobsGateway } from './jobs.gateway.js';
 import { JobKind, JobStatus, Prisma, TaskStatus } from '../generated/prisma/client.js';
 import { CreateJobDto } from './dto/create-job.dto.js';
+import { CreateDesignJobDto } from './dto/create-design-job.dto.js';
 import { CreateSeoJobDto } from './dto/create-seo-job.dto.js';
 import { FindJobsQueryDto } from './dto/find-jobs-query.dto.js';
 import { JobResponseDto } from './dto/job-response.dto.js';
@@ -128,6 +129,26 @@ export class JobsService {
 
       throw error;
     }
+  }
+
+  /**
+   * Design-джоба: лише steps, llm і taskDescription. kind, runnedById і
+   * runDate виставляє сервер. Правил (ruleIds) вона не приймає.
+   */
+  async createDesign(dto: CreateDesignJobDto, createdByUserId: string): Promise<JobResponseDto> {
+    const job = await this.prisma.job.create({
+      data: {
+        kind: JobKind.design,
+        steps: dto.steps as Prisma.InputJsonValue,
+        llm: dto.llm,
+        taskDescription: dto.taskDescription,
+        runnedById: createdByUserId,
+        runDate: new Date(),
+      },
+      include: JOB_WITH_RULES_INCLUDE,
+    });
+
+    return JobsService.toResponseDto(job);
   }
 
   /**
