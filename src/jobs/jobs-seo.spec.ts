@@ -181,35 +181,29 @@ describe('GET /jobs/:id — JobsService.findOne', () => {
   });
 });
 
-const VALID_DESIGN = {
-  steps: { step1: { status: 'pending' } },
-  llm: 'gpt_5_6_sol',
-  taskDescription: 'Банер до Кено, 3 розміри',
-};
+const VALID_DESIGN = { taskDescription: 'Банер до Кено, 3 розміри' };
 
 describe('POST /jobs/design — CreateDesignJobDto', () => {
-  it('приймає steps, llm і taskDescription, обрізає пробіли', async () => {
-    const dto = await parse(CreateDesignJobDto, { ...VALID_DESIGN, taskDescription: '  Банер  ' });
+  it('приймає лише taskDescription й обрізає пробіли', async () => {
+    const dto = await parse(CreateDesignJobDto, { taskDescription: '  Банер  ' });
     expect(dto.taskDescription).toBe('Банер');
   });
 
-  it('усі три поля обов\'язкові', async () => {
-    for (const key of ['steps', 'llm', 'taskDescription'] as const) {
-      const { [key]: _omitted, ...rest } = VALID_DESIGN;
-      await expect(parse(CreateDesignJobDto, rest), key).rejects.toThrow();
-    }
-    await expect(parse(CreateDesignJobDto, { ...VALID_DESIGN, taskDescription: '   ' })).rejects.toThrow();
+  it('taskDescription обов\'язкове й не може бути порожнім', async () => {
+    await expect(parse(CreateDesignJobDto, {})).rejects.toThrow();
+    await expect(parse(CreateDesignJobDto, { taskDescription: '   ' })).rejects.toThrow();
   });
 
-  it('відхиляє kind, поля SEO і communication та ruleIds як зайві', async () => {
-    for (const extra of [{ kind: 'design' }, { language: 'en' }, { prompt: 'x' }, { pageTask: 'x' }, { board: 'ONBOARDING' }, { ruleIds: [RULE_A] }]) {
+  it('відхиляє будь-які інші поля як зайві (steps, llm, kind, SEO, communication, ruleIds)', async () => {
+    const extras = [{ steps: { a: 1 } }, { llm: 'x' }, { kind: 'design' }, { language: 'en' }, { prompt: 'x' }, { pageTask: 'x' }, { board: 'ONBOARDING' }, { ruleIds: [RULE_A] }];
+    for (const extra of extras) {
       await expect(parse(CreateDesignJobDto, { ...VALID_DESIGN, ...extra }), JSON.stringify(extra)).rejects.toThrow();
     }
   });
 });
 
 describe('JobsService.createDesign', () => {
-  it('виставляє kind=design, runnedById, runDate; правил і полів інших видів немає', async () => {
+  it('виставляє kind=design, порожні steps, runnedById, runDate; llm, правил і полів інших видів немає', async () => {
     const { service, create } = makeService();
     const dto = await parse(CreateDesignJobDto, VALID_DESIGN);
 
@@ -218,12 +212,12 @@ describe('JobsService.createDesign', () => {
     const { data } = create.mock.calls[0]![0] as { data: Record<string, unknown> };
     expect(data).toMatchObject({
       kind: JobKind.design,
-      llm: 'gpt_5_6_sol',
+      steps: {},
       taskDescription: 'Банер до Кено, 3 розміри',
       runnedById: 'user-1',
     });
     expect(data['runDate']).toBeInstanceOf(Date);
-    for (const absent of ['jobRules', 'language', 'prompt', 'pageTask', 'board', 'messageType']) {
+    for (const absent of ['llm', 'jobRules', 'language', 'prompt', 'pageTask', 'board', 'messageType']) {
       expect(data, absent).not.toHaveProperty(absent);
     }
     expect(result).toMatchObject({ kind: JobKind.design, taskDescription: 'Банер до Кено, 3 розміри', ruleIds: [] });

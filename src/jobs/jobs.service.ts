@@ -132,15 +132,16 @@ export class JobsService {
   }
 
   /**
-   * Design-джоба: лише steps, llm і taskDescription. kind, runnedById і
-   * runDate виставляє сервер. Правил (ruleIds) вона не приймає.
+   * Design-джоба: клієнт передає лише taskDescription. kind, runnedById і
+   * runDate виставляє сервер, steps починаються порожнім об'єктом (далі їх
+   * наповнює n8n через PATCH), llm лишається null. Правил (ruleIds) вона не
+   * приймає.
    */
   async createDesign(dto: CreateDesignJobDto, createdByUserId: string): Promise<JobResponseDto> {
     const job = await this.prisma.job.create({
       data: {
         kind: JobKind.design,
-        steps: dto.steps as Prisma.InputJsonValue,
-        llm: dto.llm,
+        steps: {},
         taskDescription: dto.taskDescription,
         runnedById: createdByUserId,
         runDate: new Date(),

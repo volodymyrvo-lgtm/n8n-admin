@@ -1,26 +1,16 @@
 import { Transform } from 'class-transformer';
-import { IsNotEmptyObject, IsObject, IsString, MaxLength, MinLength } from 'class-validator';
+import { IsString, MaxLength, MinLength } from 'class-validator';
 
 const trim = ({ value }: { value: unknown }): unknown => (typeof value === 'string' ? value.trim() : value);
 
 /**
- * Створення design-джоби (POST /jobs/design). Лише steps, llm і опис
- * завдання: поля SEO (language, prompt, pageTask), поля communication
- * (board, messageType, ...) і ruleIds тут не існують, тож forbidNonWhitelisted
- * відсікає їх як зайві. kind = design, runnedById і runDate виставляє сервер.
+ * Створення design-джоби (POST /jobs/design). Фронт надсилає лише опис
+ * завдання. steps (спочатку порожній об'єкт, його наповнює n8n через PATCH),
+ * kind, runnedById і runDate виставляє сервер, тому будь-яке інше поле
+ * (steps, llm, language, prompt, ruleIds, ...) forbidNonWhitelisted відхиляє
+ * як зайве.
  */
 export class CreateDesignJobDto {
-  @IsObject()
-  @IsNotEmptyObject()
-  steps!: Record<string, unknown>;
-
-  /** Назва LLM-моделі, напр. "gpt_5_6_sol". */
-  @Transform(trim)
-  @IsString()
-  @MinLength(1)
-  @MaxLength(200)
-  llm!: string;
-
   /** Опис завдання (Task description). Зберігається в колонці task_description. */
   @Transform(trim)
   @IsString()

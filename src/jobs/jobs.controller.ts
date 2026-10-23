@@ -60,9 +60,9 @@ export class JobsController {
   }
 
   /**
-   * Створює design-джобу (kind = design): steps, llm і taskDescription.
+   * Створює design-джобу (kind = design): тіло містить лише taskDescription.
    * Окремий ендпоінт з тієї ж причини, що й /jobs/seo: kind виставляє бекенд,
-   * а зайві поля (language, prompt, ruleIds, ...) відхиляються.
+   * а зайві поля (steps, llm, language, prompt, ruleIds, ...) відхиляються.
    */
   @Post('design')
   @UseGuards(JwtAuthGuard, RolesGuard)
