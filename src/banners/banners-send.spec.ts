@@ -93,10 +93,11 @@ describe('BannersSendService.send', () => {
     expect(deleteMany).toHaveBeenCalledTimes(1);
   });
 
-  it('figmaImageName без розширення: у multipart іде з .png, а name лишається як є', async () => {
-    const { service, customerApi } = make([row(1, { figmaImageName: '124_en' })]);
+  it('figmaImageName без розширення: і filename, і name йдуть з .png, а в customer_assets лишається чистий figmaImageName', async () => {
+    const { service, customerApi, assetUpsert } = make([row(1, { figmaImageName: '124_en' })]);
     await service.send({});
-    expect(customerApi.uploadFile.mock.calls[0]![0]).toMatchObject({ filename: '124_en.png', name: '124_en', contentType: 'image/png' });
+    expect(customerApi.uploadFile.mock.calls[0]![0]).toMatchObject({ filename: '124_en.png', name: '124_en.png', contentType: 'image/png' });
+    expect(assetUpsert.mock.calls[0]![0]).toMatchObject({ create: { emailId: '124_en' } });
   });
 
   it('без parentId кладе в корінь (null)', async () => {

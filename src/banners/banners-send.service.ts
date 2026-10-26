@@ -20,8 +20,8 @@ const EXTENSION_BY_MIME: Record<string, string> = { 'image/png': '.png', 'image/
 /**
  * Ім'я файлу для multipart. Customer.io визначає тип за розширенням, а
  * figmaImageName часто без нього («124_en»): тоді файл потрапляв як PDF. Тож
- * дописуємо розширення за mimeType, якщо його ще немає. Поле name (ім'я
- * asset-а) не чіпаємо: воно лишається рівно figmaImageName.
+ * дописуємо розширення за mimeType, якщо його ще немає. Те саме ім'я йде й у
+ * поле name; у customer_assets, як і раніше, пишемо чистий figmaImageName.
  */
 export function uploadFilename(figmaImageName: string, mimeType: string): string {
   const extension = EXTENSION_BY_MIME[mimeType] ?? '.png';
@@ -99,11 +99,14 @@ export class BannersSendService {
     try {
       await this.prisma.banner.update({ where: { id: row.id }, data: { status: BannerStatus.sending } });
       const content = await this.storage.download(row.storagePath);
+      // name (ім'я asset-а) і ім'я файлу однакові й з розширенням: Customer.io бере
+      // name за основу, і без розширення файл показується як PDF.
+      const filename = uploadFilename(row.figmaImageName, row.mimeType);
       asset = await this.customerApi.uploadFile({
-        filename: uploadFilename(row.figmaImageName, row.mimeType),
+        filename,
         content,
         contentType: row.mimeType,
-        name: row.figmaImageName,
+        name: filename,
         parentFolderId,
       });
     } catch (error) {
