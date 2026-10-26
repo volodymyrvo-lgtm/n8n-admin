@@ -17,6 +17,13 @@ export class BannerListItemDto extends BannerResponseDto {
   imageUrl!: string | null;
 }
 
+export class DeleteBannersResponseDto {
+  /** Скільки банерів реально видалено. */
+  deletedCount!: number;
+  /** id з запиту, яких не існує (вже видалені або хибні): не помилка, просто повідомлення. */
+  notFoundIds!: string[];
+}
+
 export class PaginatedBannersResponseDto {
   items!: BannerListItemDto[];
   /** Кількість банерів, що відповідають фільтрам (не загальна кількість у системі). */

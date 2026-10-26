@@ -2,7 +2,7 @@ import { BadRequestException, Injectable, Logger, NotFoundException } from '@nes
 import type { Prisma } from '../generated/prisma/client.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { StorageService } from '../storage/storage.service.js';
-import { BannerListItemDto, BannerResponseDto, PaginatedBannersResponseDto } from './dto/banner-response.dto.js';
+import { BannerListItemDto, BannerResponseDto, DeleteBannersResponseDto, PaginatedBannersResponseDto } from './dto/banner-response.dto.js';
 import { CreateBannerDto } from './dto/create-banner.dto.js';
 import { FindBannersQueryDto } from './dto/find-banners-query.dto.js';
 import { uuidv7 } from './uuid7.js';
@@ -155,6 +155,30 @@ export class BannersService {
       const { count } = await this.prisma.banner.deleteMany({ where: { id: { in: batch.map((row) => row.id) } } });
       deletedCount += count;
     }
+  }
+
+  /**
+   * Видаляє лише вказані банери разом із файлами; решту не чіпає. Порядок як
+   * у remove/removeAll: пакет файлів → його рядки. Неіснуючі id не є
+   * помилкою (операція ідемпотентна): вони повертаються в notFoundIds.
+   */
+  async removeMany(ids: string[]): Promise<DeleteBannersResponseDto> {
+    const unique = [...new Set(ids)];
+    const rows = await this.prisma.banner.findMany({
+      where: { id: { in: unique } },
+      select: { id: true, storagePath: true },
+    });
+
+    let deletedCount = 0;
+    for (let i = 0; i < rows.length; i += REMOVE_BATCH_SIZE) {
+      const batch = rows.slice(i, i + REMOVE_BATCH_SIZE);
+      await this.storage.removeMany(batch.map((row) => row.storagePath));
+      const { count } = await this.prisma.banner.deleteMany({ where: { id: { in: batch.map((row) => row.id) } } });
+      deletedCount += count;
+    }
+
+    const found = new Set(rows.map((row) => row.id));
+    return { deletedCount, notFoundIds: unique.filter((id) => !found.has(id)) };
   }
 
   private static toResponseDto(banner: {

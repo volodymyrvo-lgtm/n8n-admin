@@ -269,3 +269,23 @@ model Banner {
   @@index([jobId])
   @@map("banners")
 }
+
+/// Папки ассетів з Customer.io (GET {CASTOMER_BASE_API_ENDPOINT}/folders).
+/// Синхронізуються щодня; externalId — id папки в Customer.io, унікальний, тому
+/// повторна синхронізація оновлює наявні записи, а не дублює їх. Видалені в
+/// Customer.io папки в нас лишаються. Батьківська папка без FK: порядок вставки
+/// не гарантований, а зв'язок потрібен лише для побудови дерева.
+model CustomerFolder {
+  id                String   @id @default(uuid(7)) @db.Uuid
+  externalId        Int      @unique @map("external_id")
+  name              String
+  parentExternalId  Int?     @map("parent_external_id")
+  /// created/updated із Customer.io (unix-секунди) у вигляді дат.
+  externalCreatedAt DateTime @map("external_created_at") @db.Timestamptz(3)
+  externalUpdatedAt DateTime @map("external_updated_at") @db.Timestamptz(3)
+  createdAt         DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt         DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  @@index([parentExternalId])
+  @@map("customer_folders")
+}

@@ -5,6 +5,7 @@ import { AppController } from './app.controller.js';
 import { AppService } from './app.service.js';
 import { AuthModule } from './auth/auth.module.js';
 import { BannersModule } from './banners/banners.module.js';
+import { CustomerFoldersModule } from './customer-folders/customer-folders.module.js';
 import { GlossariesModule } from './glossaries/glossaries.module.js';
 import { JobErrorsModule } from './job-errors/job-errors.module.js';
 import { JobsModule } from './jobs/jobs.module.js';
@@ -30,6 +31,7 @@ import { UsersModule } from './users/users.module.js';
     JobsModule,
     JobErrorsModule,
     BannersModule,
+    CustomerFoldersModule,
     PromptsModule,
     GlossariesModule,
     LlmUsageModule,

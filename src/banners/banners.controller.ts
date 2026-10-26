@@ -6,8 +6,9 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard.js';
 import { RolesGuard } from '../auth/guards/roles.guard.js';
 import { Role } from '../generated/prisma/client.js';
 import { BannersService, MAX_BANNER_BYTES, type UploadedBannerFile } from './banners.service.js';
-import { BannerResponseDto, PaginatedBannersResponseDto } from './dto/banner-response.dto.js';
+import { BannerResponseDto, DeleteBannersResponseDto, PaginatedBannersResponseDto } from './dto/banner-response.dto.js';
 import { CreateBannerDto } from './dto/create-banner.dto.js';
+import { DeleteBannersDto } from './dto/delete-banners.dto.js';
 import { FindBannersQueryDto } from './dto/find-banners-query.dto.js';
 
 @Controller('banners')
@@ -45,6 +46,20 @@ export class BannersController {
   @HttpCode(HttpStatus.NO_CONTENT)
   remove(@Param('id', ParseUUIDPipe) id: string): Promise<void> {
     return this.bannersService.remove(id);
+  }
+
+  /**
+   * Видаляє лише вказані банери (кнопка «decline selected»), решту не чіпає.
+   * Body: { ids: [uuid, ...] }, від 1 до 500. Лише admin. Неіснуючі id не дають
+   * помилки, а повертаються в notFoundIds. Це POST, а не DELETE з body: деякі
+   * клієнти й проксі відкидають body у DELETE.
+   */
+  @Post('bulk-delete')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.admin)
+  @HttpCode(HttpStatus.OK)
+  removeMany(@Body() dto: DeleteBannersDto): Promise<DeleteBannersResponseDto> {
+    return this.bannersService.removeMany(dto.ids);
   }
 
   /** Видаляє всі банери разом із файлами. Деструктивна масова операція — лише admin. */

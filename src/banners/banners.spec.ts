@@ -2,6 +2,7 @@ import { BadRequestException, NotFoundException, ValidationPipe } from '@nestjs/
 import { describe, expect, it, vi } from 'vitest';
 import { BannersService, MAX_BANNER_BYTES, REMOVE_BATCH_SIZE } from './banners.service.js';
 import { CreateBannerDto } from './dto/create-banner.dto.js';
+import { DeleteBannersDto, MAX_BULK_DELETE } from './dto/delete-banners.dto.js';
 import { FindBannersQueryDto } from './dto/find-banners-query.dto.js';
 import { uuidv7 } from './uuid7.js';
 
@@ -283,5 +284,71 @@ describe('BannersService.removeAll', () => {
 
     await expect(service.removeAll()).rejects.toThrow('storage down');
     expect(deleteMany).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('BannersService.removeMany', () => {
+  const id = (n: number) => `00000000-0000-4000-8000-${String(n).padStart(12, '0')}`;
+  const row = (n: number) => ({ id: id(n), storagePath: `${id(n)}/f.png` });
+
+  function make(existing: Array<{ id: string; storagePath: string }>) {
+    const findMany = vi.fn().mockResolvedValue(existing);
+    const deleteMany = vi.fn((args: { where: { id: { in: string[] } } }) => Promise.resolve({ count: args.where.id.in.length }));
+    const storage = { removeMany: vi.fn().mockResolvedValue(undefined) };
+    return { service: new BannersService({ banner: { findMany, deleteMany } } as never, storage as never), findMany, deleteMany, storage };
+  }
+
+  it('видаляє лише вказані: шукає за id, чистить файли, потім рядки', async () => {
+    const { service, findMany, storage, deleteMany } = make([row(1), row(2)]);
+    await expect(service.removeMany([id(1), id(2)])).resolves.toEqual({ deletedCount: 2, notFoundIds: [] });
+    expect(findMany.mock.calls[0]![0]).toMatchObject({ where: { id: { in: [id(1), id(2)] } } });
+    expect(storage.removeMany).toHaveBeenCalledWith([`${id(1)}/f.png`, `${id(2)}/f.png`]);
+    expect(deleteMany).toHaveBeenCalledWith({ where: { id: { in: [id(1), id(2)] } } });
+  });
+
+  it('неіснуючі id повертає в notFoundIds без помилки, повтори ігнорує', async () => {
+    const { service, storage } = make([row(1)]);
+    await expect(service.removeMany([id(1), id(9), id(1), id(9)])).resolves.toEqual({ deletedCount: 1, notFoundIds: [id(9)] });
+    expect(storage.removeMany).toHaveBeenCalledTimes(1);
+  });
+
+  it('жодного знайденого → Storage і БД не чіпаються', async () => {
+    const { service, storage, deleteMany } = make([]);
+    await expect(service.removeMany([id(5)])).resolves.toEqual({ deletedCount: 0, notFoundIds: [id(5)] });
+    expect(storage.removeMany).not.toHaveBeenCalled();
+    expect(deleteMany).not.toHaveBeenCalled();
+  });
+
+  it('великий список ріже на пакети по REMOVE_BATCH_SIZE', async () => {
+    const all = Array.from({ length: REMOVE_BATCH_SIZE + 5 }, (_, i) => row(i + 1));
+    const { service, storage } = make(all);
+    await expect(service.removeMany(all.map((r) => r.id))).resolves.toMatchObject({ deletedCount: REMOVE_BATCH_SIZE + 5 });
+    expect(storage.removeMany).toHaveBeenCalledTimes(2);
+  });
+
+  it('збій Storage: рядки цього пакета лишаються, помилка прокидається', async () => {
+    const { service, storage, deleteMany } = make([row(1)]);
+    storage.removeMany.mockRejectedValueOnce(new Error('storage down'));
+    await expect(service.removeMany([id(1)])).rejects.toThrow('storage down');
+    expect(deleteMany).not.toHaveBeenCalled();
+  });
+});
+
+describe('POST /banners/bulk-delete — DeleteBannersDto', () => {
+  const dtoPipe = new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true });
+  const parseDto = (plain: object) => dtoPipe.transform(plain, { type: 'body', metatype: DeleteBannersDto }) as Promise<DeleteBannersDto>;
+  const uuid = (n: number) => `00000000-0000-4000-8000-${String(n).padStart(12, '0')}`;
+
+  it('приймає список uuid і прибирає повтори', async () => {
+    await expect(parseDto({ ids: [uuid(1), uuid(2), uuid(1)] })).resolves.toMatchObject({ ids: [uuid(1), uuid(2)] });
+  });
+
+  it('відхиляє порожній список, не-uuid, не масив, зайві поля й понад ліміт', async () => {
+    await expect(parseDto({ ids: [] })).rejects.toThrow();
+    await expect(parseDto({ ids: ['abc'] })).rejects.toThrow();
+    await expect(parseDto({ ids: uuid(1) })).rejects.toThrow();
+    await expect(parseDto({})).rejects.toThrow();
+    await expect(parseDto({ ids: [uuid(1)], all: true })).rejects.toThrow();
+    await expect(parseDto({ ids: Array.from({ length: MAX_BULK_DELETE + 1 }, (_, i) => uuid(i + 1)) })).rejects.toThrow();
   });
 });
