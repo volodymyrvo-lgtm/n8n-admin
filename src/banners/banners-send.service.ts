@@ -15,6 +15,20 @@ export const CUSTOMER_MAX_FILE_BYTES = 2 * 1024 * 1024;
  */
 export const SEND_TIME_BUDGET_MS = 60_000;
 
+const EXTENSION_BY_MIME: Record<string, string> = { 'image/png': '.png', 'image/jpeg': '.jpg', 'image/gif': '.gif' };
+
+/**
+ * Ім'я файлу для multipart. Customer.io визначає тип за розширенням, а
+ * figmaImageName часто без нього («124_en»): тоді файл потрапляв як PDF. Тож
+ * дописуємо розширення за mimeType, якщо його ще немає. Поле name (ім'я
+ * asset-а) не чіпаємо: воно лишається рівно figmaImageName.
+ */
+export function uploadFilename(figmaImageName: string, mimeType: string): string {
+  const extension = EXTENSION_BY_MIME[mimeType] ?? '.png';
+  const alreadyHas = figmaImageName.toLowerCase().endsWith(extension) || (extension === '.jpg' && figmaImageName.toLowerCase().endsWith('.jpeg'));
+  return alreadyHas ? figmaImageName : `${figmaImageName}${extension}`;
+}
+
 @Injectable()
 export class BannersSendService {
   private readonly logger = new Logger(BannersSendService.name);
@@ -86,7 +100,7 @@ export class BannersSendService {
       await this.prisma.banner.update({ where: { id: row.id }, data: { status: BannerStatus.sending } });
       const content = await this.storage.download(row.storagePath);
       asset = await this.customerApi.uploadFile({
-        filename: row.figmaImageName,
+        filename: uploadFilename(row.figmaImageName, row.mimeType),
         content,
         contentType: row.mimeType,
         name: row.figmaImageName,

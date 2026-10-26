@@ -1,7 +1,7 @@
 import { BadGatewayException, ConflictException, ValidationPipe } from '@nestjs/common';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { CustomerApiClient } from '../customer-folders/customer-api.client.js';
-import { BannersSendService, CUSTOMER_MAX_FILE_BYTES, SEND_TIME_BUDGET_MS } from './banners-send.service.js';
+import { BannersSendService, CUSTOMER_MAX_FILE_BYTES, SEND_TIME_BUDGET_MS, uploadFilename } from './banners-send.service.js';
 import { SendBannersDto } from './dto/send-banners.dto.js';
 
 const uuid = (n: number) => `00000000-0000-4000-8000-${String(n).padStart(12, '0')}`;
@@ -91,6 +91,12 @@ describe('BannersSendService.send', () => {
     expect(result.results[0]).toMatchObject({ status: 'sent', warning: expect.stringContaining('asset record') });
     expect(storage.remove).toHaveBeenCalledTimes(1);
     expect(deleteMany).toHaveBeenCalledTimes(1);
+  });
+
+  it('figmaImageName без розширення: у multipart іде з .png, а name лишається як є', async () => {
+    const { service, customerApi } = make([row(1, { figmaImageName: '124_en' })]);
+    await service.send({});
+    expect(customerApi.uploadFile.mock.calls[0]![0]).toMatchObject({ filename: '124_en.png', name: '124_en', contentType: 'image/png' });
   });
 
   it('без parentId кладе в корінь (null)', async () => {
@@ -284,5 +290,17 @@ describe('CustomerApiClient.uploadFile', () => {
       vi.stubGlobal('fetch', mock);
       await expect(new CustomerApiClient(cfg).uploadFile(input)).rejects.toBeInstanceOf(BadGatewayException);
     }
+  });
+});
+
+describe('uploadFilename', () => {
+  it('дописує розширення за mimeType лише коли його немає', () => {
+    expect(uploadFilename('124_en', 'image/png')).toBe('124_en.png');
+    expect(uploadFilename('banner.png', 'image/png')).toBe('banner.png');
+    expect(uploadFilename('BANNER.PNG', 'image/png')).toBe('BANNER.PNG');
+    expect(uploadFilename('a.v2', 'image/png')).toBe('a.v2.png');
+    expect(uploadFilename('photo.jpeg', 'image/jpeg')).toBe('photo.jpeg');
+    expect(uploadFilename('photo', 'image/jpeg')).toBe('photo.jpg');
+    expect(uploadFilename('x', 'application/octet-stream')).toBe('x.png');
   });
 });
