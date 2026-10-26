@@ -8,5 +8,6 @@ import { CustomerFoldersService } from './customer-folders.service.js';
   imports: [AuthModule],
   controllers: [CustomerFoldersController],
   providers: [CustomerApiClient, CustomerFoldersService],
+  exports: [CustomerApiClient],
 })
 export class CustomerFoldersModule {}

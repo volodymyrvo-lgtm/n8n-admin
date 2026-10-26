@@ -24,6 +24,30 @@ export class DeleteBannersResponseDto {
   notFoundIds!: string[];
 }
 
+export class SendBannerResultDto {
+  id!: string;
+  figmaImageName!: string;
+  /** sent — файл у Customer.io (банер у нас уже видалений); send_failed — не вдалось, причина в error. */
+  status!: 'sent' | 'send_failed';
+  /** id asset-а в Customer.io (лише для sent). */
+  customerAssetId?: number;
+  error?: string;
+  /** Напр. «файл завантажено, але статус не збережено» — для ручної перевірки. */
+  warning?: string;
+}
+
+export class SendBannersResponseDto {
+  /** Скільки банерів було до відправки (підходящих під запит). */
+  total!: number;
+  sent!: number;
+  failed!: number;
+  /** Скільки не встигли за час запиту: виклик повторюють, поки remaining > 0. */
+  remaining!: number;
+  /** id з ids, які не відправлені, бо не існують або вже sent. */
+  skippedIds!: string[];
+  results!: SendBannerResultDto[];
+}
+
 export class PaginatedBannersResponseDto {
   items!: BannerListItemDto[];
   /** Кількість банерів, що відповідають фільтрам (не загальна кількість у системі). */

@@ -289,3 +289,23 @@ model CustomerFolder {
   @@index([parentExternalId])
   @@map("customer_folders")
 }
+
+/// Файли (банери), завантажені в Customer.io: що саме й за яким шляхом лежить.
+/// emailId — figmaImageName банера. Без FK на banners: банер після відправки
+/// можуть видалити, а запис про завантаження має лишитись.
+model CustomerAsset {
+  id             String   @id @default(uuid(7)) @db.Uuid
+  /// figmaImageName завантаженого банера.
+  emailId        String   @map("email_id")
+  /// Посилання/шлях файлу в Customer.io (поле path з відповіді).
+  path           String?
+  /// id asset-а в Customer.io; унікальний, щоб один asset не записувався двічі.
+  externalId     Int      @unique @map("external_id")
+  name           String?
+  parentFolderId Int?     @map("parent_folder_id")
+  sizeBytes      Int?     @map("size_bytes")
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  @@index([emailId])
+  @@map("customer_assets")
+}

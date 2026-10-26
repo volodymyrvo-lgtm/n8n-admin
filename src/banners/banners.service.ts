@@ -103,7 +103,8 @@ export class BannersService {
 
     let urls = new Map<string, string | null>();
     try {
-      urls = await this.storage.createSignedUrls(rows.map((row) => row.storagePath));
+      // Файли sent-банерів уже видалені зі Storage, тож їх не підписуємо.
+      urls = await this.storage.createSignedUrls(rows.filter((row) => row.status !== 'sent').map((row) => row.storagePath));
     } catch (error) {
       this.logger.error(`Failed to sign banner URLs: ${String(error)}`);
     }

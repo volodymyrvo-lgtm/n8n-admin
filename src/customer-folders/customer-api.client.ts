@@ -18,7 +18,28 @@ export interface RemoteFolder {
   updated: Date;
 }
 
+export interface RemoteAsset {
+  id: number;
+  name: string | null;
+  /** Шлях/URL файлу в Customer.io, якщо API його віддав. */
+  path: string | null;
+  parentFolderId: number | null;
+  size: number | null;
+}
+
+export interface UploadFileInput {
+  /** Ім'я файлу в multipart (з розширенням). */
+  filename: string;
+  content: Buffer;
+  contentType: string;
+  /** Ім'я asset-а в Customer.io. */
+  name: string;
+  /** null — корінь. */
+  parentFolderId: number | null;
+}
+
 export const PAGE_SIZE = 1000;
+const UPLOAD_TIMEOUT_MS = 60_000;
 const MAX_PAGES = 100;
 const MAX_ATTEMPTS = 3;
 const REQUEST_TIMEOUT_MS = 30_000;
@@ -88,6 +109,70 @@ export class CustomerApiClient {
     }
     const folder = typeof body === 'object' && body !== null ? (body as { folder?: unknown }).folder : undefined;
     return CustomerApiClient.parseFolder(folder);
+  }
+
+  /**
+   * Завантажує один файл у Customer.io (POST /files, multipart/form-data:
+   * file, name, parent_folder_id). Без повторів: операція не ідемпотентна,
+   * повтор міг би створити дубль. Помилки мапляться на HTTP-винятки з коротким
+   * текстом без ключа.
+   */
+  async uploadFile(input: UploadFileInput): Promise<RemoteAsset> {
+    const { baseUrl, apiKey } = this.readConfig();
+
+    const form = new FormData();
+    form.append('file', new Blob([new Uint8Array(input.content)], { type: input.contentType }), input.filename);
+    form.append('name', input.name);
+    if (input.parentFolderId !== null) {
+      form.append('parent_folder_id', String(input.parentFolderId));
+    }
+
+    let response: Response;
+    try {
+      // Content-Type не ставимо вручну: fetch сам додасть multipart boundary.
+      response = await fetch(`${baseUrl}/files`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${apiKey}`, Accept: 'application/json' },
+        body: form,
+        signal: AbortSignal.timeout(UPLOAD_TIMEOUT_MS),
+      });
+    } catch (error) {
+      this.logger.warn(`Customer API upload failed: ${error instanceof Error ? error.name : 'error'}`);
+      throw new BadGatewayException('Customer API is unreachable');
+    }
+
+    if (!response.ok) {
+      this.logger.warn(`Customer API upload responded ${response.status}`);
+      switch (response.status) {
+        case 400:
+        case 413:
+          throw new BadRequestException('Customer API rejected the file (invalid name, type or size over 2 MB)');
+        case 404:
+          throw new NotFoundException('Parent folder was not found in Customer API');
+        case 409:
+          throw new ConflictException('A file with this name already exists in this folder');
+        default:
+          throw new BadGatewayException(`Customer API request failed (HTTP ${response.status})`);
+      }
+    }
+
+    let body: unknown;
+    try {
+      body = await response.json();
+    } catch {
+      throw new BadGatewayException('Customer API returned invalid JSON');
+    }
+    const asset = (typeof body === 'object' && body !== null ? (body as { asset?: unknown }).asset : undefined) as Record<string, unknown> | undefined;
+    if (typeof asset !== 'object' || asset === null || !Number.isInteger(asset['id'])) {
+      throw new BadGatewayException('Customer API returned an unexpected response');
+    }
+    return {
+      id: asset['id'] as number,
+      name: typeof asset['name'] === 'string' ? asset['name'] : null,
+      path: typeof asset['path'] === 'string' ? asset['path'] : null,
+      parentFolderId: Number.isInteger(asset['parent_folder_id']) ? (asset['parent_folder_id'] as number) : null,
+      size: typeof asset['size'] === 'number' ? asset['size'] : null,
+    };
   }
 
   /** Усі папки: проходить усі сторінки й прибирає повтори за id. */

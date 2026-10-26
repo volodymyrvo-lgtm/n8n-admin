@@ -150,6 +150,7 @@ describe('Матриця ролей', () => {
     expect(allowed('DELETE /banners')).toBe(false);
     expect(allowed('DELETE /banners/:id')).toBe(false);
     expect(allowed('POST /banners/bulk-delete')).toBe(false);
+    expect(allowed('POST /banners/send')).toBe(false);
     expect(allowed('POST /rules')).toBe(false);
     expect(allowed('POST /rules/seo')).toBe(false);
     expect(allowed('POST /rules/design')).toBe(false);
