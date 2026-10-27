@@ -31,6 +31,9 @@ export class SendBannerResultDto {
   status!: 'sent' | 'send_failed';
   /** id asset-а в Customer.io (лише для sent). */
   customerAssetId?: number;
+  /** Що Customer.io повернув для файлу: ім'я й шлях (для звірки, чи правильний тип/розширення). */
+  customerName?: string | null;
+  customerPath?: string | null;
   error?: string;
   /** Напр. «файл завантажено, але статус не збережено» — для ручної перевірки. */
   warning?: string;

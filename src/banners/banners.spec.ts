@@ -1,7 +1,8 @@
-import { BadRequestException, NotFoundException, ValidationPipe } from '@nestjs/common';
+import { BadRequestException, ConflictException, NotFoundException, ValidationPipe } from '@nestjs/common';
 import { describe, expect, it, vi } from 'vitest';
 import { BannersService, MAX_BANNER_BYTES, REMOVE_BATCH_SIZE } from './banners.service.js';
 import { CreateBannerDto } from './dto/create-banner.dto.js';
+import { ReplaceBannerDto } from './dto/replace-banner.dto.js';
 import { DeleteBannersDto, MAX_BULK_DELETE } from './dto/delete-banners.dto.js';
 import { FindBannersQueryDto } from './dto/find-banners-query.dto.js';
 import { uuidv7 } from './uuid7.js';
@@ -350,5 +351,130 @@ describe('POST /banners/bulk-delete — DeleteBannersDto', () => {
     await expect(parseDto({})).rejects.toThrow();
     await expect(parseDto({ ids: [uuid(1)], all: true })).rejects.toThrow();
     await expect(parseDto({ ids: Array.from({ length: MAX_BULK_DELETE + 1 }, (_, i) => uuid(i + 1)) })).rejects.toThrow();
+  });
+});
+
+describe('BannersService.replaceImage', () => {
+  const ID = '22222222-2222-4222-8222-222222222222';
+  const OLD_PATH = `${ID}/old.png`;
+  const NEW_PATH = `${ID}/new.png`;
+  const dbRow = (over: Record<string, unknown> = {}) => ({
+    id: ID,
+    jobId: null,
+    figmaImageName: 'banner',
+    storagePath: NEW_PATH,
+    mimeType: 'image/png',
+    sizeBytes: PNG.length,
+    status: 'pending',
+    createdAt: new Date('2026-10-23T10:00:00Z'),
+    ...over,
+  });
+
+  function make(opts: { current?: { storagePath: string; status: string } | null; updateCount?: number; updateFails?: boolean } = {}) {
+    const findUnique = vi
+      .fn()
+      .mockResolvedValueOnce(opts.current === undefined ? { storagePath: OLD_PATH, status: 'rejected' } : opts.current)
+      .mockResolvedValue(dbRow());
+    const updateMany = vi.fn((_args: { data: Record<string, unknown> }) => (opts.updateFails ? Promise.reject(new Error('db down')) : Promise.resolve({ count: opts.updateCount ?? 1 })));
+    const storage = {
+      buildPath: vi.fn(() => NEW_PATH),
+      upload: vi.fn().mockResolvedValue(undefined),
+      remove: vi.fn().mockResolvedValue(undefined),
+      createSignedUrl: vi.fn().mockResolvedValue('https://signed/new.png'),
+    };
+    const service = new BannersService({ banner: { findUnique, updateMany } } as never, storage as never);
+    return { service, findUnique, updateMany, storage };
+  }
+
+  it('кладе новий файл, оновлює рядок (шлях, розмір, pending), потім видаляє старий файл', async () => {
+    const { service, updateMany, storage } = make();
+    const result = await service.replaceImage(ID, {}, file(PNG));
+
+    expect(storage.upload).toHaveBeenCalledWith(NEW_PATH, PNG, { contentType: 'image/png' });
+    expect(updateMany).toHaveBeenCalledWith({
+      where: { id: ID, status: { notIn: ['sending', 'sent'] } },
+      data: { storagePath: NEW_PATH, mimeType: 'image/png', sizeBytes: PNG.length, status: 'pending' },
+    });
+    expect(storage.remove).toHaveBeenCalledTimes(1);
+    expect(storage.remove).toHaveBeenCalledWith(OLD_PATH);
+    expect(result).toMatchObject({ id: ID, status: 'pending', imageUrl: 'https://signed/new.png' });
+    expect(result).not.toHaveProperty('storagePath');
+  });
+
+  it('нова назва потрапляє в update лише якщо передана', async () => {
+    const { service, updateMany } = make();
+    await service.replaceImage(ID, { figmaImageName: 'renamed' }, file(PNG));
+    expect(updateMany.mock.calls[0]![0].data).toMatchObject({ figmaImageName: 'renamed' });
+  });
+
+  it('невалідний файл → 400 до будь-яких звернень до БД чи Storage', async () => {
+    const { service, findUnique, storage } = make();
+    await expect(service.replaceImage(ID, {}, undefined)).rejects.toBeInstanceOf(BadRequestException);
+    await expect(service.replaceImage(ID, {}, file(Buffer.from('not a png')))).rejects.toBeInstanceOf(BadRequestException);
+    expect(findUnique).not.toHaveBeenCalled();
+    expect(storage.upload).not.toHaveBeenCalled();
+  });
+
+  it('банера немає → 404, файл не завантажується', async () => {
+    const { service, storage } = make({ current: null });
+    await expect(service.replaceImage(ID, {}, file(PNG))).rejects.toBeInstanceOf(NotFoundException);
+    expect(storage.upload).not.toHaveBeenCalled();
+  });
+
+  it('sending або sent → 409 без завантаження файлу', async () => {
+    for (const status of ['sending', 'sent']) {
+      const { service, storage } = make({ current: { storagePath: OLD_PATH, status } });
+      await expect(service.replaceImage(ID, {}, file(PNG))).rejects.toBeInstanceOf(ConflictException);
+      expect(storage.upload).not.toHaveBeenCalled();
+    }
+  });
+
+  it('статус змінився між перевіркою й оновленням (count 0) → 409, новий файл прибирається, старий лишається', async () => {
+    const { service, storage } = make({ updateCount: 0 });
+    await expect(service.replaceImage(ID, {}, file(PNG))).rejects.toBeInstanceOf(ConflictException);
+    expect(storage.remove).toHaveBeenCalledTimes(1);
+    expect(storage.remove).toHaveBeenCalledWith(NEW_PATH);
+  });
+
+  it('збій БД → новий файл прибирається, помилка прокидається, старий файл не чіпається', async () => {
+    const { service, storage } = make({ updateFails: true });
+    await expect(service.replaceImage(ID, {}, file(PNG))).rejects.toThrow('db down');
+    expect(storage.remove).toHaveBeenCalledTimes(1);
+    expect(storage.remove).toHaveBeenCalledWith(NEW_PATH);
+  });
+
+  it('збій видалення старого файлу не ламає заміну', async () => {
+    const { service, storage } = make();
+    storage.remove.mockRejectedValueOnce(new Error('storage down'));
+    await expect(service.replaceImage(ID, {}, file(PNG))).resolves.toMatchObject({ id: ID });
+  });
+
+  it('збій підпису URL не ламає заміну: imageUrl null', async () => {
+    const { service, storage } = make();
+    storage.createSignedUrl.mockRejectedValueOnce(new Error('sign down'));
+    await expect(service.replaceImage(ID, {}, file(PNG))).resolves.toMatchObject({ imageUrl: null });
+  });
+
+  it('збій завантаження нового файлу: БД не чіпається', async () => {
+    const { service, storage, updateMany } = make();
+    storage.upload.mockRejectedValueOnce(new Error('upload failed'));
+    await expect(service.replaceImage(ID, {}, file(PNG))).rejects.toThrow('upload failed');
+    expect(updateMany).not.toHaveBeenCalled();
+  });
+});
+
+describe('PUT /banners/:id/image — ReplaceBannerDto', () => {
+  const dtoPipe = new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true });
+  const parseDto = (plain: object) => dtoPipe.transform(plain, { type: 'body', metatype: ReplaceBannerDto }) as Promise<ReplaceBannerDto>;
+
+  it('поле необов\'язкове; порожній рядок = не задано; пробіли обрізаються', async () => {
+    await expect(parseDto({})).resolves.toEqual({});
+    await expect(parseDto({ figmaImageName: '   ' })).resolves.toEqual({ figmaImageName: undefined });
+    await expect(parseDto({ figmaImageName: '  new  ' })).resolves.toMatchObject({ figmaImageName: 'new' });
+  });
+
+  it('відхиляє задовгу назву та зайві поля', async () => {
+    await expect(parseDto({ figmaImageName: 'x'.repeat(256) })).rejects.toThrow();
+    await expect(parseDto({ jobId: 'x' })).rejects.toThrow();
   });
 });

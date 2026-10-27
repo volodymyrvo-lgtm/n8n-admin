@@ -118,7 +118,8 @@ export class BannersSendService {
 
     // Файл уже в Customer.io: далі лише прибирання, і його збої не повинні
     // перетворювати успіх на помилку (повтор дав би дубль).
-    const result: SendBannerResultDto = { ...base, status: 'sent', customerAssetId: asset.id };
+    this.logger.log(`Banner ${row.id} uploaded to Customer.io: asset ${asset.id}, name=${asset.name ?? '-'}, path=${asset.path ?? '-'}, size=${asset.size ?? '-'}`);
+    const result: SendBannerResultDto = { ...base, status: 'sent', customerAssetId: asset.id, customerName: asset.name, customerPath: asset.path };
     // Запис про завантажений файл (emailId = figmaImageName, path). Збій не
     // перетворює успішну відправку на помилку, але лишає warning і запис у лозі.
     try {

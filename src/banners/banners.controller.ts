@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, HttpCode, HttpStatus, Param, ParseUUIDPipe, Post, Query, UploadedFile, UseGuards, UseInterceptors } from '@nestjs/common';
+import { Body, Controller, Delete, Get, HttpCode, HttpStatus, Param, ParseUUIDPipe, Post, Put, Query, UploadedFile, UseGuards, UseInterceptors } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { Roles } from '../auth/decorators/roles.decorator.js';
 import { ApiKeyGuard } from '../auth/guards/api-key.guard.js';
@@ -7,10 +7,11 @@ import { RolesGuard } from '../auth/guards/roles.guard.js';
 import { Role } from '../generated/prisma/client.js';
 import { BannersSendService } from './banners-send.service.js';
 import { BannersService, MAX_BANNER_BYTES, type UploadedBannerFile } from './banners.service.js';
-import { BannerResponseDto, DeleteBannersResponseDto, PaginatedBannersResponseDto, SendBannersResponseDto } from './dto/banner-response.dto.js';
+import { BannerListItemDto, BannerResponseDto, DeleteBannersResponseDto, PaginatedBannersResponseDto, SendBannersResponseDto } from './dto/banner-response.dto.js';
 import { CreateBannerDto } from './dto/create-banner.dto.js';
 import { DeleteBannersDto } from './dto/delete-banners.dto.js';
 import { FindBannersQueryDto } from './dto/find-banners-query.dto.js';
+import { ReplaceBannerDto } from './dto/replace-banner.dto.js';
 import { SendBannersDto } from './dto/send-banners.dto.js';
 
 @Controller('banners')
@@ -51,6 +52,25 @@ export class BannersController {
   @HttpCode(HttpStatus.NO_CONTENT)
   remove(@Param('id', ParseUUIDPipe) id: string): Promise<void> {
     return this.bannersService.remove(id);
+  }
+
+  /**
+   * Заміна картинки банера вручну (лише admin). multipart/form-data: поле
+   * "file" (новий PNG, до 10 МБ) і необов'язкове figmaImageName. Новий файл
+   * замінює старий у Storage, рядок у БД оновлюється, статус стає pending.
+   * 404 — банера немає, 409 — він зараз відправляється або вже sent.
+   * Відповідь — оновлений банер з новим imageUrl.
+   */
+  @Put(':id/image')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.admin)
+  @UseInterceptors(FileInterceptor('file', { limits: { fileSize: MAX_BANNER_BYTES, files: 1 } }))
+  replaceImage(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: ReplaceBannerDto,
+    @UploadedFile() file: UploadedBannerFile | undefined,
+  ): Promise<BannerListItemDto> {
+    return this.bannersService.replaceImage(id, dto, file);
   }
 
   /**

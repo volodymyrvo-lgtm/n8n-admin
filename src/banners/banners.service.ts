@@ -1,10 +1,11 @@
-import { BadRequestException, Injectable, Logger, NotFoundException } from '@nestjs/common';
-import type { Prisma } from '../generated/prisma/client.js';
+import { BadRequestException, ConflictException, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { BannerStatus, type Prisma } from '../generated/prisma/client.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { StorageService } from '../storage/storage.service.js';
 import { BannerListItemDto, BannerResponseDto, DeleteBannersResponseDto, PaginatedBannersResponseDto } from './dto/banner-response.dto.js';
 import { CreateBannerDto } from './dto/create-banner.dto.js';
 import { FindBannersQueryDto } from './dto/find-banners-query.dto.js';
+import type { ReplaceBannerDto } from './dto/replace-banner.dto.js';
 import { uuidv7 } from './uuid7.js';
 
 export const MAX_BANNER_BYTES = 10 * 1024 * 1024;
@@ -36,15 +37,7 @@ export class BannersService {
    * сиріт у бакеті.
    */
   async create(dto: CreateBannerDto, file: UploadedBannerFile | undefined): Promise<BannerResponseDto> {
-    if (!file || file.size === 0) {
-      throw new BadRequestException('File is required (multipart field "file")');
-    }
-    if (file.buffer.length > MAX_BANNER_BYTES) {
-      throw new BadRequestException(`File is too large (max ${MAX_BANNER_BYTES / 1024 / 1024} MB)`);
-    }
-    if (!file.buffer.subarray(0, PNG_SIGNATURE.length).equals(PNG_SIGNATURE)) {
-      throw new BadRequestException('Only PNG images are accepted');
-    }
+    const validFile = BannersService.assertValidPng(file);
 
     // Перевірка ДО завантаження, щоб неіснуюча джоба не залишила файл у Storage.
     if (dto.jobId) {
@@ -56,7 +49,7 @@ export class BannersService {
 
     const id = uuidv7();
     const storagePath = this.storage.buildPath(id, 'png');
-    await this.storage.upload(storagePath, file.buffer, { contentType: 'image/png' });
+    await this.storage.upload(storagePath, validFile.buffer, { contentType: 'image/png' });
 
     try {
       const banner = await this.prisma.banner.create({
@@ -66,7 +59,7 @@ export class BannersService {
           figmaImageName: dto.figmaImageName,
           storagePath,
           mimeType: 'image/png',
-          sizeBytes: file.buffer.length,
+          sizeBytes: validFile.buffer.length,
         },
       });
       return BannersService.toResponseDto(banner);
@@ -76,6 +69,86 @@ export class BannersService {
       });
       throw error;
     }
+  }
+
+  /**
+   * Заміна картинки банера вручну (фронт завантажує новий PNG замість
+   * невдалого). Новий файл кладеться за новим шляхом, рядок у БД оновлюється
+   * (шлях, розмір, за потреби назва), статус скидається в pending, і лише
+   * після цього старий файл видаляється зі Storage. Якщо оновлення БД
+   * не вдалось, новий файл прибирається, а банер лишається з попереднім.
+   * Банер у статусі sending (іде відправка) або sent замінити не можна: 409.
+   */
+  async replaceImage(id: string, dto: ReplaceBannerDto, file: UploadedBannerFile | undefined): Promise<BannerListItemDto> {
+    const validFile = BannersService.assertValidPng(file);
+
+    const current = await this.prisma.banner.findUnique({ where: { id }, select: { storagePath: true, status: true } });
+    if (!current) {
+      throw new NotFoundException(`Banner "${id}" not found`);
+    }
+    if (BannersService.isLocked(current.status)) {
+      throw new ConflictException(`Banner is ${current.status} and cannot be replaced`);
+    }
+
+    const newPath = this.storage.buildPath(id, 'png');
+    await this.storage.upload(newPath, validFile.buffer, { contentType: 'image/png' });
+
+    let updated: Awaited<ReturnType<typeof this.prisma.banner.findUnique>>;
+    try {
+      // updateMany з умовою на статус: якщо відправка почалась після перевірки вище, нічого не оновиться.
+      const { count } = await this.prisma.banner.updateMany({
+        where: { id, status: { notIn: [BannerStatus.sending, BannerStatus.sent] } },
+        data: {
+          storagePath: newPath,
+          mimeType: 'image/png',
+          sizeBytes: validFile.buffer.length,
+          status: BannerStatus.pending,
+          ...(dto.figmaImageName ? { figmaImageName: dto.figmaImageName } : {}),
+        },
+      });
+      if (count === 0) {
+        throw new ConflictException('Banner is being sent or was removed and cannot be replaced');
+      }
+      updated = await this.prisma.banner.findUnique({ where: { id } });
+    } catch (error) {
+      await this.storage.remove(newPath).catch((cleanupError: unknown) => {
+        this.logger.error(`Failed to remove orphan file "${newPath}": ${String(cleanupError)}`);
+      });
+      throw error;
+    }
+    if (!updated) {
+      throw new NotFoundException(`Banner "${id}" not found`);
+    }
+
+    // Старий файл більше нікому не потрібен; збій прибирання не ламає заміну.
+    await this.storage.remove(current.storagePath).catch((cleanupError: unknown) => {
+      this.logger.error(`Banner ${id} was replaced but the old file "${current.storagePath}" was not removed: ${String(cleanupError)}`);
+    });
+
+    const imageUrl = await this.storage.createSignedUrl(newPath).catch((signError: unknown) => {
+      this.logger.error(`Failed to sign banner URL: ${String(signError)}`);
+      return null;
+    });
+    return { ...BannersService.toResponseDto(updated), imageUrl };
+  }
+
+  /** Банер, який зараз відправляється або вже відправлений, не міняємо. */
+  private static isLocked(status: BannerStatus): boolean {
+    return status === BannerStatus.sending || status === BannerStatus.sent;
+  }
+
+  /** Перевірка файлу за розміром і сигнатурою (а не за mimetype, який клієнт може вказати як завгодно). */
+  private static assertValidPng(file: UploadedBannerFile | undefined): UploadedBannerFile {
+    if (!file || file.size === 0) {
+      throw new BadRequestException('File is required (multipart field "file")');
+    }
+    if (file.buffer.length > MAX_BANNER_BYTES) {
+      throw new BadRequestException(`File is too large (max ${MAX_BANNER_BYTES / 1024 / 1024} MB)`);
+    }
+    if (!file.buffer.subarray(0, PNG_SIGNATURE.length).equals(PNG_SIGNATURE)) {
+      throw new BadRequestException('Only PNG images are accepted');
+    }
+    return file;
   }
 
   /**

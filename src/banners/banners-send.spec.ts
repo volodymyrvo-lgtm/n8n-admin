@@ -46,7 +46,7 @@ describe('BannersSendService.send', () => {
     const result = await service.send({ parentId: 5 });
 
     expect(result).toMatchObject({ total: 2, sent: 2, failed: 0, remaining: 0, skippedIds: [] });
-    expect(result.results[0]).toEqual({ id: uuid(1), figmaImageName: 'banner1.png', status: 'sent', customerAssetId: 100 });
+    expect(result.results[0]).toEqual({ id: uuid(1), figmaImageName: 'banner1.png', status: 'sent', customerAssetId: 100, customerName: 'banner1.png', customerPath: 'https://assets.example/banner1.png' });
     expect(customerApi.uploadFile).toHaveBeenCalledTimes(2);
     expect(customerApi.uploadFile.mock.calls[0]![0]).toEqual({
       filename: 'banner1.png',
