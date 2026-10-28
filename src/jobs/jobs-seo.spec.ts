@@ -2,6 +2,7 @@ import { ValidationPipe } from '@nestjs/common';
 import { describe, expect, it, vi } from 'vitest';
 import { JobKind } from '../generated/prisma/client.js';
 import { CreateDesignJobDto } from './dto/create-design-job.dto.js';
+import { CreateJobDto } from './dto/create-job.dto.js';
 import { CreateSeoJobDto } from './dto/create-seo-job.dto.js';
 import { FindJobsQueryDto } from './dto/find-jobs-query.dto.js';
 import { JobsService } from './jobs.service.js';
@@ -225,5 +226,140 @@ describe('JobsService.createDesign', () => {
 
   it('GET /jobs?kind=design приймається фільтром', async () => {
     await expect(parse(FindJobsQueryDto, { kind: 'design' }, 'query')).resolves.toMatchObject({ kind: JobKind.design });
+  });
+});
+
+describe('POST /jobs — нові task-статуси оновлення HTML листа', () => {
+  const FULL_COMMUNICATION = {
+    steps: { step1: { status: 'pending' } },
+    jobType: 'welcome',
+    taskStatus: 'new',
+    messageType: 'email',
+    board: 'ONBOARDING',
+    taskDescription: 'Опис',
+    ruleIds: [RULE_A],
+    sm: '33333333-3333-4333-8333-333333333333',
+    llm: 'm',
+  };
+
+  it.each(['welcome_email_html_update', 'system_email_html_update'])('%s: достатньо taskStatus і taskDescription', async (taskStatus) => {
+    const dto = await parse(CreateJobDto, { taskStatus, taskDescription: 'Оновити лист' });
+    expect(dto).toMatchObject({ taskStatus, taskDescription: 'Оновити лист' });
+    expect(dto.isBannerUpdate).toBeUndefined();
+  });
+
+  it('isBannerUpdate необов\'язковий: true і false проходять, не-boolean відхиляється', async () => {
+    const base = { taskStatus: 'welcome_email_html_update', taskDescription: 'd' };
+    await expect(parse(CreateJobDto, { ...base, isBannerUpdate: true })).resolves.toMatchObject({ isBannerUpdate: true });
+    await expect(parse(CreateJobDto, { ...base, isBannerUpdate: false })).resolves.toMatchObject({ isBannerUpdate: false });
+    await expect(parse(CreateJobDto, { ...base, isBannerUpdate: 'yes' })).rejects.toThrow();
+  });
+
+  it('taskDescription для цих статусів лишається обов\'язковим', async () => {
+    await expect(parse(CreateJobDto, { taskStatus: 'system_email_html_update' })).rejects.toThrow();
+    await expect(parse(CreateJobDto, { taskStatus: 'system_email_html_update', taskDescription: '' })).rejects.toThrow();
+  });
+
+  it('порожні плейсхолдери решти полів для цих статусів не валять валідацію', async () => {
+    await expect(
+      parse(CreateJobDto, { taskStatus: 'welcome_email_html_update', taskDescription: 'd', steps: {}, jobType: '', messageType: '', board: '', ruleIds: [], sm: '', llm: '' }),
+    ).resolves.toMatchObject({ taskStatus: 'welcome_email_html_update' });
+  });
+
+  it('для звичайних статусів усе по-старому: без jobType/steps/... валідація падає', async () => {
+    await expect(parse(CreateJobDto, { taskStatus: 'new', taskDescription: 'd' })).rejects.toThrow();
+    await expect(parse(CreateJobDto, FULL_COMMUNICATION)).resolves.toMatchObject({ taskStatus: 'new' });
+    await expect(parse(CreateJobDto, { ...FULL_COMMUNICATION, taskStatus: 'bogus' })).rejects.toThrow();
+  });
+
+  it('невідомі поля, як і раніше, відхиляються', async () => {
+    await expect(parse(CreateJobDto, { taskStatus: 'welcome_email_html_update', taskDescription: 'd', foo: 1 })).rejects.toThrow();
+  });
+});
+
+describe('JobsService.create — оновлення HTML листа', () => {
+  it('зберігає лише taskDescription і isBannerUpdate; kind communication, порожні steps, без правил і полів решти', async () => {
+    const { service, create } = makeService(JobKind.communication);
+    const dto = await parse(CreateJobDto, { taskStatus: 'welcome_email_html_update', taskDescription: 'Оновити', isBannerUpdate: true });
+
+    const result = await service.create(dto, 'user-1');
+
+    const { data } = create.mock.calls[0]![0] as { data: Record<string, unknown> };
+    expect(data).toMatchObject({
+      kind: JobKind.communication,
+      steps: {},
+      taskStatus: 'welcome_email_html_update',
+      taskDescription: 'Оновити',
+      isBannerUpdate: true,
+      runnedById: 'user-1',
+    });
+    expect(data['runDate']).toBeInstanceOf(Date);
+    for (const absent of ['jobType', 'messageType', 'board', 'sm', 'llm', 'jobRules', 'glossaryId']) {
+      expect(data, absent).not.toHaveProperty(absent);
+    }
+    expect(result).toMatchObject({ taskStatus: 'welcome_email_html_update', isBannerUpdate: true, ruleIds: [] });
+  });
+
+  it('без isBannerUpdate записується false', async () => {
+    const { service, create } = makeService(JobKind.communication);
+    await service.create(await parse(CreateJobDto, { taskStatus: 'system_email_html_update', taskDescription: 'd' }), 'user-1');
+    expect((create.mock.calls[0]![0] as { data: Record<string, unknown> }).data['isBannerUpdate']).toBe(false);
+  });
+
+  it('ігнорує передані зайві поля (steps, ruleIds, sm, llm) і не звертається до правил', async () => {
+    const { service, create } = makeService(JobKind.communication);
+    const dto = await parse(CreateJobDto, {
+      taskStatus: 'welcome_email_html_update',
+      taskDescription: 'd',
+      steps: { a: 1 },
+      jobType: 'x',
+      messageType: 'email',
+      board: 'ONBOARDING',
+      ruleIds: [RULE_A],
+      sm: '33333333-3333-4333-8333-333333333333',
+      llm: 'm',
+    });
+    await service.create(dto, 'user-1');
+    const { data } = create.mock.calls[0]![0] as { data: Record<string, unknown> };
+    expect(data['steps']).toEqual({});
+    for (const absent of ['jobType', 'messageType', 'board', 'sm', 'llm', 'jobRules']) {
+      expect(data, absent).not.toHaveProperty(absent);
+    }
+  });
+
+  it('isBannerUpdate: true для звичайного статусу → 400, джоба не створюється', async () => {
+    const { service, create } = makeService(JobKind.communication);
+    const dto = {
+      steps: { step1: { status: 'pending' } },
+      jobType: 'x',
+      taskStatus: 'new',
+      messageType: 'email',
+      board: 'ONBOARDING',
+      taskDescription: 'd',
+      ruleIds: [RULE_A],
+      sm: '33333333-3333-4333-8333-333333333333',
+      llm: 'm',
+      isBannerUpdate: true,
+    };
+    await expect(service.create(dto as never, 'user-1')).rejects.toThrow('isBannerUpdate');
+    expect(create).not.toHaveBeenCalled();
+  });
+
+  it('isBannerUpdate: false для звичайного статусу дозволено й не ламає створення', async () => {
+    const { service, create } = makeService(JobKind.communication);
+    const dto = {
+      steps: { step1: { status: 'pending' } },
+      jobType: 'x',
+      taskStatus: 'new',
+      messageType: 'email',
+      board: 'ONBOARDING',
+      taskDescription: 'd',
+      ruleIds: [RULE_A],
+      sm: '33333333-3333-4333-8333-333333333333',
+      llm: 'm',
+      isBannerUpdate: false,
+    };
+    await expect(service.create(dto as never, 'user-1')).resolves.toBeDefined();
+    expect(create).toHaveBeenCalledTimes(1);
   });
 });

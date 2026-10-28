@@ -15,6 +15,8 @@ export class JobResponseDto {
   messageType!: MessageType | null;
   board!: Board | null;
   taskDescription!: string | null;
+  /** Прапорець «оновлення банера»; true лише для статусів welcome/system_email_html_update. */
+  isBannerUpdate!: boolean;
   /** Поля SEO-джоби (kind = seo), у communication-джобах null. */
   language!: string | null;
   prompt!: string | null;

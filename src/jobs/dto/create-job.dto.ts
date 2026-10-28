@@ -1,5 +1,13 @@
-import { IsArray, IsEnum, IsNotEmptyObject, IsObject, IsOptional, IsString, IsUUID, MinLength } from 'class-validator';
+import { IsArray, IsBoolean, IsEnum, IsNotEmptyObject, IsObject, IsOptional, IsString, IsUUID, MinLength, ValidateIf } from 'class-validator';
 import { Board, MessageType, TaskStatus } from '../../generated/prisma/client.js';
+import { isHtmlUpdateTaskStatus } from '../html-update-task-status.js';
+
+/**
+ * Для taskStatus welcome_email_html_update / system_email_html_update приходять
+ * лише taskStatus, taskDescription та необов'язковий isBannerUpdate, тому решта
+ * полів для них не валідується (і сервіс її ігнорує).
+ */
+const notHtmlUpdate = (dto: { taskStatus?: unknown }): boolean => !isHtmlUpdateTaskStatus(dto.taskStatus);
 
 export class CreateJobDto {
   /**
@@ -8,10 +16,12 @@ export class CreateJobDto {
    * а не примітив/null. Статуси окремих кроків усередині цієї структури
    * потім оновлює n8n через PATCH /jobs/:id.
    */
+  @ValidateIf(notHtmlUpdate)
   @IsObject()
   @IsNotEmptyObject()
   steps!: Record<string, unknown>;
 
+  @ValidateIf(notHtmlUpdate)
   @IsString()
   @MinLength(1)
   jobType!: string;
@@ -19,15 +29,26 @@ export class CreateJobDto {
   @IsEnum(TaskStatus)
   taskStatus!: TaskStatus;
 
+  @ValidateIf(notHtmlUpdate)
   @IsEnum(MessageType)
   messageType!: MessageType;
 
+  @ValidateIf(notHtmlUpdate)
   @IsEnum(Board)
   board!: Board;
 
   @IsString()
   @MinLength(1)
   taskDescription!: string;
+
+  /**
+   * Прапорець «оновлення банера». Необов'язковий і допустимий лише для
+   * taskStatus welcome_email_html_update / system_email_html_update; true для
+   * інших статусів сервіс відхиляє (400). За замовчуванням false.
+   */
+  @IsOptional()
+  @IsBoolean()
+  isBannerUpdate?: boolean;
 
   /**
    * Джоба тепер може посилатись на кілька правил одразу. Для
@@ -37,6 +58,7 @@ export class CreateJobDto {
    * JobsService.create() (бо залежить від значення іншого поля — такого
    * в class-validator без зайвої плутанини декораторів не зробити чисто).
    */
+  @ValidateIf(notHtmlUpdate)
   @IsArray()
   @IsUUID('all', { each: true })
   ruleIds!: string[];
@@ -49,6 +71,7 @@ export class CreateJobDto {
    * від taskStatus. У БД стовпець до того ж типізований як uuid (не text),
    * тож порожній рядок нормалізується в null перед записом (сервіс).
    */
+  @ValidateIf(notHtmlUpdate)
   @IsString()
   sm!: string;
 
@@ -63,6 +86,7 @@ export class CreateJobDto {
    * обов'язкове (непорожнє) для всіх taskStatus, КРІМ 'update', де фронт
    * шле порожній рядок; реальну вимогу перевіряє JobsService.create().
    */
+  @ValidateIf(notHtmlUpdate)
   @IsString()
   llm!: string;
 }

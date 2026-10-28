@@ -28,6 +28,8 @@ enum TaskStatus {
   new
   update
   localization
+  welcome_email_html_update
+  system_email_html_update
 
   @@map("task_status")
 }
@@ -114,6 +116,9 @@ model Job {
   messageType     MessageType? @map("message_type")
   board           Board?
   taskDescription String?      @map("task_description")
+  /// Прапорець «оновлення банера»; має сенс лише для taskStatus
+  /// welcome_email_html_update / system_email_html_update, в інших джобах false.
+  isBannerUpdate  Boolean      @default(false) @map("is_banner_update")
 
   /// Поля SEO-джоби (kind = seo), у communication-джобах — null.
   language String?
