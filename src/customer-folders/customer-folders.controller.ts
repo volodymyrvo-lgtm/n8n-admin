@@ -1,9 +1,11 @@
 import { Body, Controller, Get, HttpCode, HttpStatus, Post, Query, UseGuards } from '@nestjs/common';
+import { ApiBadGatewayResponse, ApiConflictResponse, ApiOkResponse } from '@nestjs/swagger';
 import { ApiKeyGuard } from '../auth/guards/api-key.guard.js';
 import { Roles } from '../auth/decorators/roles.decorator.js';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard.js';
 import { RolesGuard } from '../auth/guards/roles.guard.js';
 import { Role } from '../generated/prisma/client.js';
+import { SyncResultDto } from './dto/sync-result.dto.js';
 import { CreateCustomerFolderDto } from './dto/create-customer-folder.dto.js';
 import type { CustomerFolderResponseDto, CustomerFoldersListResponseDto } from './dto/customer-folder-response.dto.js';
 import { FindCustomerFoldersQueryDto } from './dto/find-customer-folders-query.dto.js';
@@ -31,6 +33,8 @@ export class CustomerFoldersController {
   @Post()
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(Role.admin, Role.user)
+  @ApiConflictResponse({ description: 'Папка з такою назвою вже є в цій батьківській папці' })
+  @ApiBadGatewayResponse({ description: 'Customer.io недоступний або повернув помилку' })
   @HttpCode(HttpStatus.CREATED)
   create(@Body() dto: CreateCustomerFolderDto): Promise<CustomerFolderResponseDto> {
     return this.customerFoldersService.create(dto);
@@ -44,6 +48,9 @@ export class CustomerFoldersController {
   @Post('sync')
   @UseGuards(ApiKeyGuard)
   @HttpCode(HttpStatus.OK)
+  @ApiOkResponse({ type: SyncResultDto })
+  @ApiConflictResponse({ description: 'Синхронізація вже виконується' })
+  @ApiBadGatewayResponse({ description: 'Customer.io недоступний або повернув помилку' })
   sync(): Promise<SyncResult> {
     return this.customerFoldersService.sync();
   }

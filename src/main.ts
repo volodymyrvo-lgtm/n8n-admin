@@ -2,6 +2,7 @@ import { ValidationPipe } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { ConfigService } from '@nestjs/config';
 import { AppModule } from './app.module.js';
+import { setupSwagger } from './swagger.js';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
@@ -32,6 +33,11 @@ async function bootstrap() {
       transform: true,
     }),
   );
+
+  // Swagger UI на /docs, JSON на /docs-json. SWAGGER_ENABLED=false вимикає (напр. на проді).
+  if (config.get<string>('SWAGGER_ENABLED', 'true').trim().toLowerCase() !== 'false') {
+    setupSwagger(app);
+  }
 
   await app.listen(process.env.PORT ?? 3000);
 }

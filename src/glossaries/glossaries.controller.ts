@@ -11,6 +11,7 @@ import {
   Post,
   UseGuards,
 } from '@nestjs/common';
+import { ApiBody, ApiOkResponse } from '@nestjs/swagger';
 import { Roles } from '../auth/decorators/roles.decorator.js';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard.js';
 import { RolesGuard } from '../auth/guards/roles.guard.js';
@@ -61,6 +62,7 @@ export class GlossariesController {
   // ---------- entries (один термін усередині allGlossRules.entries, за id) ----------
 
   @Get(':id/entries')
+  @ApiOkResponse({ schema: { type: 'array', items: { type: 'object', additionalProperties: true } } })
   listEntries(@Param('id', ParseUUIDPipe) id: string): Promise<unknown[]> {
     return this.glossariesService.listEntries(id);
   }
@@ -79,6 +81,7 @@ export class GlossariesController {
   @UseGuards(RolesGuard)
   @Roles(Role.admin)
   @HttpCode(HttpStatus.CREATED)
+  @ApiBody({ schema: { type: 'object', additionalProperties: true, example: { english_term: 'welcome bonus', status: 'approved' } } })
   addEntry(
     @Param('id', ParseUUIDPipe) id: string,
     @Body() entry: Record<string, unknown>,
@@ -90,6 +93,7 @@ export class GlossariesController {
   @Patch(':id/entries/:entryId')
   @UseGuards(RolesGuard)
   @Roles(Role.admin)
+  @ApiBody({ schema: { type: 'object', additionalProperties: true, example: { status: 'approved' } } })
   updateEntry(
     @Param('id', ParseUUIDPipe) id: string,
     @Param('entryId', ParseUUIDPipe) entryId: string,

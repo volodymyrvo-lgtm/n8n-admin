@@ -1,5 +1,7 @@
 import { Body, Controller, Delete, Get, HttpCode, HttpStatus, Param, ParseUUIDPipe, Post, Put, Query, UploadedFile, UseGuards, UseInterceptors } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
+import { ApiBody, ApiConflictResponse, ApiConsumes, ApiOkResponse } from '@nestjs/swagger';
+import { DeletedCountResponseDto } from '../common/dto/deleted-count-response.dto.js';
 import { Roles } from '../auth/decorators/roles.decorator.js';
 import { ApiKeyGuard } from '../auth/guards/api-key.guard.js';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard.js';
@@ -28,6 +30,18 @@ export class BannersController {
    */
   @Post()
   @UseGuards(ApiKeyGuard)
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      required: ['file', 'figmaImageName'],
+      properties: {
+        file: { type: 'string', format: 'binary', description: 'PNG, до 10 МБ' },
+        figmaImageName: { type: 'string', maxLength: 255, description: 'Назва фрейму/картинки у Figma' },
+        jobId: { type: 'string', format: 'uuid', description: 'Джоба, що породила банер (необов\'язково)' },
+      },
+    },
+  })
   @UseInterceptors(FileInterceptor('file', { limits: { fileSize: MAX_BANNER_BYTES, files: 1 } }))
   @HttpCode(HttpStatus.CREATED)
   create(@Body() dto: CreateBannerDto, @UploadedFile() file: UploadedBannerFile | undefined): Promise<BannerResponseDto> {
@@ -64,6 +78,18 @@ export class BannersController {
   @Put(':id/image')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(Role.admin)
+  @ApiConflictResponse({ description: 'Банер зараз відправляється або вже sent' })
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      required: ['file'],
+      properties: {
+        file: { type: 'string', format: 'binary', description: 'Новий PNG, до 10 МБ' },
+        figmaImageName: { type: 'string', maxLength: 255, description: 'Нова назва (необов\'язково, інакше лишається попередня)' },
+      },
+    },
+  })
   @UseInterceptors(FileInterceptor('file', { limits: { fileSize: MAX_BANNER_BYTES, files: 1 } }))
   replaceImage(
     @Param('id', ParseUUIDPipe) id: string,
@@ -83,6 +109,7 @@ export class BannersController {
   @Post('send')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(Role.admin)
+  @ApiConflictResponse({ description: 'Відправка вже виконується' })
   @HttpCode(HttpStatus.OK)
   send(@Body() dto: SendBannersDto): Promise<SendBannersResponseDto> {
     return this.bannersSendService.send(dto);
@@ -106,6 +133,7 @@ export class BannersController {
   @Delete()
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(Role.admin)
+  @ApiOkResponse({ type: DeletedCountResponseDto })
   removeAll(): Promise<{ deletedCount: number }> {
     return this.bannersService.removeAll();
   }
