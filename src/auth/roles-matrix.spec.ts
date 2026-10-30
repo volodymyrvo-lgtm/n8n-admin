@@ -10,6 +10,7 @@ import { JobsController } from '../jobs/jobs.controller.js';
 import { LlmUsageController } from '../llm-usage/llm-usage.controller.js';
 import { PromptsController } from '../prompts/prompts.controller.js';
 import { RulesController } from '../rules/rules.controller.js';
+import { UpdatedEmailsController } from '../updated-emails/updated-emails.controller.js';
 import { UsersController } from '../users/users.controller.js';
 import { ROLES_KEY } from './decorators/roles.decorator.js';
 import { ApiKeyGuard } from './guards/api-key.guard.js';
@@ -33,6 +34,7 @@ const CONTROLLERS = [
   JobErrorsController,
   BannersController,
   CustomerFoldersController,
+  UpdatedEmailsController,
   LlmUsageController,
   RulesController,
   PromptsController,
@@ -94,7 +96,7 @@ describe('Матриця ролей', () => {
   it('маршрути для n8n (X-API-Key) не залежать від ролей', () => {
     const apiKeyRoutes = routes.filter((route) => route.guards.includes(ApiKeyGuard)).map((route) => route.key);
     expect(apiKeyRoutes.sort()).toEqual(
-      ['PATCH /jobs/:id', 'POST /banners', 'POST /customer-folders/sync', 'POST /job-errors', 'POST /llm-usage'].sort(),
+      ['PATCH /jobs/:id', 'POST /banners', 'POST /customer-folders/sync', 'POST /job-errors', 'POST /llm-usage', 'POST /updated-emails'].sort(),
     );
     for (const route of routes.filter((r) => r.guards.includes(ApiKeyGuard))) {
       expect(route.roles, route.key).toBeUndefined();
@@ -114,6 +116,8 @@ describe('Матриця ролей', () => {
     expect(allowed('GET /jobs/:id')).toBe(true);
     expect(allowed('GET /banners')).toBe(true);
     expect(allowed('GET /customer-folders')).toBe(true);
+    expect(allowed('GET /updated-emails')).toBe(true);
+    expect(allowed('GET /updated-emails/:id')).toBe(true);
     expect(allowed('GET /rules')).toBe(true);
     expect(allowed('GET /prompts')).toBe(true);
     expect(allowed('GET /glossaries')).toBe(true);

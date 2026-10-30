@@ -14,6 +14,7 @@ import { PrismaModule } from './prisma/prisma.module.js';
 import { PromptsModule } from './prompts/prompts.module.js';
 import { RulesModule } from './rules/rules.module.js';
 import { StorageModule } from './storage/storage.module.js';
+import { UpdatedEmailsModule } from './updated-emails/updated-emails.module.js';
 import { UsersModule } from './users/users.module.js';
 
 @Module({
@@ -32,6 +33,7 @@ import { UsersModule } from './users/users.module.js';
     JobErrorsModule,
     BannersModule,
     CustomerFoldersModule,
+    UpdatedEmailsModule,
     PromptsModule,
     GlossariesModule,
     LlmUsageModule,

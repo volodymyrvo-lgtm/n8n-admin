@@ -13,6 +13,7 @@ import { LlmUsageController } from './llm-usage/llm-usage.controller.js';
 import { PromptsController } from './prompts/prompts.controller.js';
 import { RulesController } from './rules/rules.controller.js';
 import { API_KEY_SCHEME, BEARER_SCHEME, buildSwaggerDocument } from './swagger.js';
+import { UpdatedEmailsController } from './updated-emails/updated-emails.controller.js';
 import { UsersController } from './users/users.controller.js';
 
 type Operation = {
@@ -35,6 +36,7 @@ beforeAll(async () => {
       JobErrorsController,
       BannersController,
       CustomerFoldersController,
+      UpdatedEmailsController,
       LlmUsageController,
       RulesController,
       PromptsController,
@@ -77,6 +79,7 @@ describe('Swagger-документ', () => {
     expect(operations.get('POST /banners')!.security).toEqual([{ [API_KEY_SCHEME]: [] }]);
     expect(operations.get('PATCH /jobs/{id}')!.security).toEqual([{ [API_KEY_SCHEME]: [] }]);
     expect(operations.get('POST /customer-folders/sync')!.security).toEqual([{ [API_KEY_SCHEME]: [] }]);
+    expect(operations.get('POST /updated-emails')!.security).toEqual([{ [API_KEY_SCHEME]: [] }]);
     expect(operations.get('POST /auth/login')!.security).toBeUndefined();
   });
 

@@ -1,11 +1,15 @@
 import { ValidationPipe } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
+import type { NestExpressApplication } from '@nestjs/platform-express';
 import { ConfigService } from '@nestjs/config';
 import { AppModule } from './app.module.js';
 import { setupSwagger } from './swagger.js';
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
+  const app = await NestFactory.create<NestExpressApplication>(AppModule);
+
+  // Стандартний ліміт JSON у Express — 100 КБ, а HTML листи (POST /updated-emails) бувають більшими.
+  app.useBodyParser('json', { limit: '5mb' });
 
   const config = app.get(ConfigService);
   const corsOriginsRaw = config.get<string>('CORS_ORIGINS', 'http://localhost:4200').trim();

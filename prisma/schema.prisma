@@ -314,3 +314,17 @@ model CustomerAsset {
   @@index([emailId])
   @@map("customer_assets")
 }
+
+/// Оновлені HTML-листи. emailId — ідентифікатор листа (той самий, що email_id
+/// у customer_assets, тобто figmaImageName), body — повний HTML листа.
+model UpdatedEmail {
+  id        String   @id @default(uuid(7)) @db.Uuid
+  emailId   String   @map("email_id")
+  /// HTML листа цілком.
+  body      String
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  @@index([emailId])
+  @@map("updated_emails")
+}
