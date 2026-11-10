@@ -11,6 +11,7 @@ import { JobResponseDto } from './dto/job-response.dto.js';
 import { PaginatedJobsResponseDto } from './dto/paginated-jobs-response.dto.js';
 import { UpdateJobDto } from './dto/update-job.dto.js';
 import { isHtmlUpdateTaskStatus } from './html-update-task-status.js';
+import { isShortCommunicationTaskStatus } from './short-communication-task-status.js';
 
 const JOB_WITH_RULES_INCLUDE = {
   jobRules: { select: { ruleId: true } },
@@ -82,6 +83,10 @@ export class JobsService {
       throw new BadRequestException('isBannerUpdate is allowed only for taskStatus "welcome_email_html_update" or "system_email_html_update"');
     }
 
+    if (isShortCommunicationTaskStatus(dto.taskStatus)) {
+      return this.createShortCommunicationUpdate(dto, createdByUserId);
+    }
+
     // sm/llm/ruleIds обов'язкові для всіх taskStatus, КРІМ 'update' — там
     // фронт ховає ці поля і завжди шле їх порожніми (sm: '', llm: '',
     // ruleIds: []). DTO це вже пропускає (лише базові @IsString()/@IsArray()),
@@ -110,6 +115,7 @@ export class JobsService {
           messageType: dto.messageType,
           board: dto.board,
           taskDescription: dto.taskDescription,
+          language: dto.language?.toUpperCase(),
           // Юзер, який створив джобу — той, хто зараз залогінений (з JWT),
           // а не те, що прийшло в тілі запиту.
           runnedById: createdByUserId,
@@ -137,6 +143,31 @@ export class JobsService {
 
       throw error;
     }
+  }
+
+  /**
+   * Джоба short_communication_update: береться taskStatus, steps, jobType,
+   * messageType, необов'язкові language (у верхньому регістрі) і glossaryId.
+   * board, taskDescription, sm, llm лишаються null, правил немає. Решту
+   * переданих полів ігноруємо.
+   */
+  private async createShortCommunicationUpdate(dto: CreateJobDto, createdByUserId: string): Promise<JobResponseDto> {
+    const job = await this.prisma.job.create({
+      data: {
+        kind: JobKind.communication,
+        steps: dto.steps as Prisma.InputJsonValue,
+        jobType: dto.jobType,
+        taskStatus: dto.taskStatus,
+        messageType: dto.messageType,
+        language: dto.language?.toUpperCase(),
+        glossaryId: dto.glossaryId,
+        runnedById: createdByUserId,
+        runDate: new Date(),
+      },
+      include: JOB_WITH_RULES_INCLUDE,
+    });
+
+    return JobsService.toResponseDto(job);
   }
 
   /**

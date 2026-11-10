@@ -30,6 +30,7 @@ enum TaskStatus {
   localization
   welcome_email_html_update
   system_email_html_update
+  short_communication_update
 
   @@map("task_status")
 }
@@ -40,6 +41,8 @@ enum MessageType {
   web_push
   notification_center
   in_app
+  mobile_push
+  whatsapp
 
   @@map("message_type")
 }
@@ -120,7 +123,8 @@ model Job {
   /// welcome_email_html_update / system_email_html_update, в інших джобах false.
   isBannerUpdate  Boolean      @default(false) @map("is_banner_update")
 
-  /// Поля SEO-джоби (kind = seo), у communication-джобах — null.
+  /// Мова: обов'язкова для SEO-джоб (kind = seo), у communication-джобах
+  /// необов'язкова (береться з тіла запиту, зберігається у верхньому регістрі).
   language String?
   /// Просто рядок як є, без розбору й типізації.
   prompt   String?

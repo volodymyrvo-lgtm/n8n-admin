@@ -7,6 +7,7 @@ import {
   HttpStatus,
   Param,
   ParseUUIDPipe,
+  Patch,
   Post,
   UseGuards,
 } from '@nestjs/common';
@@ -15,6 +16,7 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard.js';
 import { RolesGuard } from '../auth/guards/roles.guard.js';
 import { Role } from '../generated/prisma/client.js';
 import { CreateUserDto } from './dto/create-user.dto.js';
+import { UpdateUserRoleDto } from './dto/update-user-role.dto.js';
 import { UserResponseDto } from './dto/user-response.dto.js';
 import { UsersService } from './users.service.js';
 
@@ -35,6 +37,17 @@ export class UsersController {
   @UseGuards(JwtAuthGuard)
   findAll(): Promise<UserResponseDto[]> {
     return this.usersService.findAll();
+  }
+
+  /**
+   * Зміна ролі юзера (тільки admin). Тіло: { role }. 404 — юзера немає, 409 —
+   * це останній admin. Нова роль діє після наступного логіну юзера.
+   */
+  @Patch(':id/role')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.admin)
+  updateRole(@Param('id', ParseUUIDPipe) id: string, @Body() dto: UpdateUserRoleDto): Promise<UserResponseDto> {
+    return this.usersService.updateRole(id, dto.role);
   }
 
   @Delete(':id')

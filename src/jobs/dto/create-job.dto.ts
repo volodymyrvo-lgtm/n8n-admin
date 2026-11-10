@@ -1,6 +1,8 @@
-import { IsArray, IsBoolean, IsEnum, IsNotEmptyObject, IsObject, IsOptional, IsString, IsUUID, MinLength, ValidateIf } from 'class-validator';
+import { Transform } from 'class-transformer';
+import { IsArray, IsBoolean, IsEnum, IsNotEmptyObject, IsObject, IsOptional, IsString, IsUUID, Matches, MinLength, ValidateIf } from 'class-validator';
 import { Board, MessageType, TaskStatus } from '../../generated/prisma/client.js';
 import { isHtmlUpdateTaskStatus } from '../html-update-task-status.js';
+import { isShortCommunicationTaskStatus } from '../short-communication-task-status.js';
 
 /**
  * Для taskStatus welcome_email_html_update / system_email_html_update приходять
@@ -8,6 +10,16 @@ import { isHtmlUpdateTaskStatus } from '../html-update-task-status.js';
  * полів для них не валідується (і сервіс її ігнорує).
  */
 const notHtmlUpdate = (dto: { taskStatus?: unknown }): boolean => !isHtmlUpdateTaskStatus(dto.taskStatus);
+
+/**
+ * Для taskStatus short_communication_update приходять taskStatus, steps,
+ * jobType, messageType і необов'язкова language: board, taskDescription,
+ * ruleIds, sm і llm для нього не валідуються (і сервіс їх ігнорує).
+ */
+const notShortUpdate = (dto: { taskStatus?: unknown }): boolean => !isShortCommunicationTaskStatus(dto.taskStatus);
+
+/** Поля, обов'язкові лише для «повних» джоб: не html_update і не short_communication_update. */
+const fullCommunication = (dto: { taskStatus?: unknown }): boolean => notHtmlUpdate(dto) && notShortUpdate(dto);
 
 export class CreateJobDto {
   /**
@@ -33,10 +45,11 @@ export class CreateJobDto {
   @IsEnum(MessageType)
   messageType!: MessageType;
 
-  @ValidateIf(notHtmlUpdate)
+  @ValidateIf(fullCommunication)
   @IsEnum(Board)
   board!: Board;
 
+  @ValidateIf(notShortUpdate)
   @IsString()
   @MinLength(1)
   taskDescription!: string;
@@ -58,7 +71,7 @@ export class CreateJobDto {
    * JobsService.create() (бо залежить від значення іншого поля — такого
    * в class-validator без зайвої плутанини декораторів не зробити чисто).
    */
-  @ValidateIf(notHtmlUpdate)
+  @ValidateIf(fullCommunication)
   @IsArray()
   @IsUUID('all', { each: true })
   ruleIds!: string[];
@@ -71,7 +84,7 @@ export class CreateJobDto {
    * від taskStatus. У БД стовпець до того ж типізований як uuid (не text),
    * тож порожній рядок нормалізується в null перед записом (сервіс).
    */
-  @ValidateIf(notHtmlUpdate)
+  @ValidateIf(fullCommunication)
   @IsString()
   sm!: string;
 
@@ -86,7 +99,18 @@ export class CreateJobDto {
    * обов'язкове (непорожнє) для всіх taskStatus, КРІМ 'update', де фронт
    * шле порожній рядок; реальну вимогу перевіряє JobsService.create().
    */
-  @ValidateIf(notHtmlUpdate)
+  @ValidateIf(fullCommunication)
   @IsString()
   llm!: string;
+
+  /**
+   * Код мови, напр. "EN", "AZ", "RU". Необов'язковий для будь-якого taskStatus
+   * (для html_update ігнорується). Пробіли по краях обрізаються, у БД
+   * зберігається у верхньому регістрі.
+   */
+  @IsOptional()
+  @Transform(({ value }: { value: unknown }) => (typeof value === 'string' ? value.trim() : value))
+  @IsString()
+  @Matches(/^[A-Za-z]{2,5}$/, { message: 'language must be 2-5 latin letters, e.g. "EN"' })
+  language?: string;
 }

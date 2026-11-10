@@ -160,6 +160,7 @@ describe('Матриця ролей', () => {
     expect(allowed('POST /rules/seo')).toBe(false);
     expect(allowed('POST /rules/design')).toBe(false);
     expect(allowed('POST /prompts')).toBe(false);
+    expect(allowed('PATCH /users/:id/role')).toBe(false);
   });
 
   it('admin має доступ до всіх JWT-маршрутів', () => {

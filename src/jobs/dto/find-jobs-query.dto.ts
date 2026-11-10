@@ -4,7 +4,7 @@ import { JobKind, MessageType } from '../../generated/prisma/client.js';
 
 /**
  * Query-параметри GET /jobs. У ТЗ фронта фільтр названо "jobType" зі
- * значеннями email/sms/web_push/notification_center/in_app — це точнісінько
+ * значеннями email/sms/web_push/notification_center/in_app/mobile_push/whatsapp — це точнісінько
  * enum MessageType (окреме поле jobType у нас лишається довільним рядком і
  * тут не фільтрується).
  */

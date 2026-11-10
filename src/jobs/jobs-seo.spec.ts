@@ -363,3 +363,115 @@ describe('JobsService.create — оновлення HTML листа', () => {
     expect(create).toHaveBeenCalledTimes(1);
   });
 });
+
+describe('CreateJobDto — language і short_communication_update', () => {
+  const FULL = {
+    steps: { s1: { status: 'pending' } },
+    jobType: 'KYC Success v1',
+    taskStatus: 'new',
+    messageType: 'email',
+    board: 'ONBOARDING',
+    taskDescription: 'Опис',
+    ruleIds: [RULE_A],
+    sm: '33333333-3333-4333-8333-333333333333',
+    llm: 'm',
+  };
+  const SHORT = { steps: { s1: { status: 'pending' } }, jobType: 'KYC Success v1', taskStatus: 'short_communication_update', messageType: 'whatsapp' };
+
+  it('language необов\'язкове для звичайних статусів і обрізає пробіли', async () => {
+    await expect(parse(CreateJobDto, FULL)).resolves.toBeDefined();
+    await expect(parse(CreateJobDto, { ...FULL, language: ' en ' })).resolves.toMatchObject({ language: 'en' });
+    await expect(parse(CreateJobDto, { ...FULL, language: 'e' })).rejects.toThrow();
+    await expect(parse(CreateJobDto, { ...FULL, language: 'english' })).rejects.toThrow();
+    await expect(parse(CreateJobDto, { ...FULL, language: 'E1' })).rejects.toThrow();
+  });
+
+  it.each(['mobile_push', 'whatsapp'])('messageType %s приймається', async (messageType) => {
+    await expect(parse(CreateJobDto, { ...FULL, messageType })).resolves.toMatchObject({ messageType });
+    await expect(parse(FindJobsQueryDto, { jobType: messageType }, 'query')).resolves.toMatchObject({ jobType: [messageType] });
+  });
+
+  it('short_communication_update: достатньо steps, jobType, messageType (language необов\'язкова)', async () => {
+    await expect(parse(CreateJobDto, SHORT)).resolves.toMatchObject({ taskStatus: 'short_communication_update' });
+    await expect(parse(CreateJobDto, { ...SHORT, language: 'EN' })).resolves.toMatchObject({ language: 'EN' });
+  });
+
+  it('short_communication_update: jobType, messageType і steps лишаються обов\'язковими', async () => {
+    for (const missing of ['steps', 'jobType', 'messageType']) {
+      const { [missing]: _omit, ...rest } = SHORT as Record<string, unknown>;
+      await expect(parse(CreateJobDto, rest), missing).rejects.toThrow();
+    }
+    await expect(parse(CreateJobDto, { ...SHORT, messageType: 'bogus' })).rejects.toThrow();
+  });
+
+  it('для решти статусів board, taskDescription, ruleIds, sm, llm обов\'язкові, як і раніше', async () => {
+    for (const missing of ['board', 'taskDescription', 'ruleIds', 'sm', 'llm']) {
+      const { [missing]: _omit, ...rest } = FULL as Record<string, unknown>;
+      await expect(parse(CreateJobDto, rest), missing).rejects.toThrow();
+    }
+  });
+});
+
+describe('JobsService.create — language і short_communication_update', () => {
+  it('communication-джоба зберігає language у верхньому регістрі, без language — undefined', async () => {
+    const { service, create } = makeService(JobKind.communication);
+    const base = {
+      steps: { s1: { status: 'pending' } },
+      jobType: 'KYC Success v1',
+      taskStatus: 'new',
+      messageType: 'mobile_push',
+      board: 'ONBOARDING',
+      taskDescription: 'Опис',
+      ruleIds: [RULE_A],
+      sm: '33333333-3333-4333-8333-333333333333',
+      llm: 'm',
+    };
+    await service.create(await parse(CreateJobDto, { ...base, language: 'en' }), 'user-1');
+    await service.create(await parse(CreateJobDto, base), 'user-1');
+    expect((create.mock.calls[0]![0] as { data: Record<string, unknown> }).data).toMatchObject({ language: 'EN', messageType: 'mobile_push' });
+    expect((create.mock.calls[1]![0] as { data: Record<string, unknown> }).data['language']).toBeUndefined();
+  });
+
+  it('short_communication_update: зберігає лише steps, jobType, messageType, language; без правил і решти полів', async () => {
+    const { service, create } = makeService(JobKind.communication);
+    const dto = await parse(CreateJobDto, {
+      steps: { s1: { status: 'pending' } },
+      jobType: 'KYC Success v1',
+      taskStatus: 'short_communication_update',
+      messageType: 'whatsapp',
+      language: 'en',
+      board: 'ONBOARDING',
+    } as object);
+    // board для цього статусу не валідується, тож не перевіряємо його значення, лише що воно не зберігається
+    const result = await service.create(dto, 'user-1');
+
+    const { data } = create.mock.calls[0]![0] as { data: Record<string, unknown> };
+    expect(data).toMatchObject({
+      kind: JobKind.communication,
+      steps: { s1: { status: 'pending' } },
+      jobType: 'KYC Success v1',
+      taskStatus: 'short_communication_update',
+      messageType: 'whatsapp',
+      language: 'EN',
+      runnedById: 'user-1',
+    });
+    expect(data['runDate']).toBeInstanceOf(Date);
+    for (const absent of ['board', 'taskDescription', 'sm', 'llm', 'jobRules', 'isBannerUpdate']) {
+      expect(data, absent).not.toHaveProperty(absent);
+    }
+    expect(result).toMatchObject({ taskStatus: 'short_communication_update', ruleIds: [] });
+  });
+
+  it('isBannerUpdate: true для short_communication_update відхиляється', async () => {
+    const { service } = makeService(JobKind.communication);
+    const dto = await parse(CreateJobDto, {
+      steps: { s1: 1 },
+      jobType: 'x',
+      taskStatus: 'short_communication_update',
+      messageType: 'whatsapp',
+      isBannerUpdate: true,
+    });
+    await expect(service.create(dto, 'user-1')).rejects.toThrow();
+  });
+});
+
