@@ -53,6 +53,7 @@ enum JobKind {
   communication
   seo
   design
+  blog_ai
 
   @@map("job_kind")
 }
@@ -195,6 +196,8 @@ model Glossary {
   glossaryName  String   @unique @map("glossary_name")
   allGlossRules Json     @map("all_gloss_rules")
   setType       String[] @default([]) @map("set_type")
+  /// Для яких джоб глосарій: communication, seo, design чи blog_ai. Наявні — communication.
+  kind          JobKind  @default(communication)
   createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt     DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
 

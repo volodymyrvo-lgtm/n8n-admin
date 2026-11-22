@@ -1,8 +1,9 @@
 import { randomUUID } from 'node:crypto';
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
-import { Prisma } from '../generated/prisma/client.js';
+import { JobKind, Prisma } from '../generated/prisma/client.js';
 import { CreateGlossaryDto } from './dto/create-glossary.dto.js';
+import { FindGlossariesQueryDto } from './dto/find-glossaries-query.dto.js';
 import { GlossaryResponseDto } from './dto/glossary-response.dto.js';
 import { UpdateGlossaryDto } from './dto/update-glossary.dto.js';
 
@@ -30,6 +31,7 @@ export class GlossariesService {
           // тип, а не `unknown` — тому явний каст саме тут (як у rules).
           allGlossRules: dto.allGlossRules as Prisma.InputJsonValue,
           setType: dto.setType,
+          kind: dto.kind ?? JobKind.communication,
         },
       });
 
@@ -43,8 +45,9 @@ export class GlossariesService {
     }
   }
 
-  findAll(): Promise<GlossaryResponseDto[]> {
+  findAll(query: FindGlossariesQueryDto): Promise<GlossaryResponseDto[]> {
     return this.prisma.glossary.findMany({
+      where: { kind: query.kind },
       orderBy: { createdAt: 'desc' },
     });
   }
@@ -74,6 +77,7 @@ export class GlossariesService {
           // пропустить його й не чіпатиме значення в базі.
           allGlossRules,
           setType: dto.setType,
+          kind: dto.kind,
         },
       });
 

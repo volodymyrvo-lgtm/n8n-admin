@@ -61,3 +61,16 @@ describe('Prompts kind=design', () => {
     expect((findMany.mock.calls[0]![0] as { where: { kind: JobKind } }).where.kind).toBe(JobKind.design);
   });
 });
+
+describe('Prompts kind = blog_ai', () => {
+  it('створення, оновлення і список працюють із blog_ai', async () => {
+    const { service, create, update, findMany } = makeService();
+    await service.create(await parse(CreatePromptDto, { name: 'p', message: 'm', kind: 'blog_ai' }));
+    await service.update('p1', await parse(UpdatePromptDto, { kind: 'blog_ai' }));
+    await service.findAll(await parse(FindPromptsQueryDto, { kind: 'blog_ai' }, 'query'));
+    expect((create.mock.calls[0]![0] as { data: { kind: JobKind } }).data.kind).toBe(JobKind.blog_ai);
+    expect((update.mock.calls[0]![0] as { data: { kind: JobKind } }).data.kind).toBe(JobKind.blog_ai);
+    expect((findMany.mock.calls[0]![0] as { where: { kind: JobKind } }).where.kind).toBe(JobKind.blog_ai);
+  });
+});
+

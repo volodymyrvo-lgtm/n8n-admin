@@ -9,6 +9,7 @@ import {
   ParseUUIDPipe,
   Patch,
   Post,
+  Query,
   UseGuards,
 } from '@nestjs/common';
 import { ApiBody, ApiOkResponse } from '@nestjs/swagger';
@@ -17,6 +18,7 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard.js';
 import { RolesGuard } from '../auth/guards/roles.guard.js';
 import { Role } from '../generated/prisma/client.js';
 import { CreateGlossaryDto } from './dto/create-glossary.dto.js';
+import { FindGlossariesQueryDto } from './dto/find-glossaries-query.dto.js';
 import { GlossaryResponseDto } from './dto/glossary-response.dto.js';
 import { UpdateGlossaryDto } from './dto/update-glossary.dto.js';
 import { GlossariesService } from './glossaries.service.js';
@@ -40,8 +42,8 @@ export class GlossariesController {
   }
 
   @Get()
-  findAll(): Promise<GlossaryResponseDto[]> {
-    return this.glossariesService.findAll();
+  findAll(@Query() query: FindGlossariesQueryDto): Promise<GlossaryResponseDto[]> {
+    return this.glossariesService.findAll(query);
   }
 
   @Patch(':id')

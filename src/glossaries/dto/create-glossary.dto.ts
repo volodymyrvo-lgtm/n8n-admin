@@ -1,4 +1,5 @@
-import { ArrayUnique, IsArray, IsNotEmptyObject, IsObject, IsOptional, IsString, MaxLength, MinLength } from 'class-validator';
+import { ArrayUnique, IsArray, IsEnum, IsNotEmptyObject, IsObject, IsOptional, IsString, MaxLength, MinLength } from 'class-validator';
+import { JobKind } from '../../generated/prisma/client.js';
 
 export class CreateGlossaryDto {
   @IsString()
@@ -19,4 +20,13 @@ export class CreateGlossaryDto {
   @ArrayUnique()
   @IsString({ each: true })
   setType?: string[];
+
+  /**
+   * Для яких джоб цей глосарій. Необов'язкове — без нього створюється
+   * communication (старі клієнти не ламаються). Як і в промптів, його можна
+   * змінити через PATCH.
+   */
+  @IsOptional()
+  @IsEnum(JobKind)
+  kind?: JobKind;
 }
