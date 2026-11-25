@@ -62,6 +62,7 @@ enum Board {
   ONBOARDING
   onboarding_comms
   CHURN_15
+  CHURN_30
 
   @@map("board")
 }
